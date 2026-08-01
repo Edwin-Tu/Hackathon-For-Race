@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import AppBar from './AppBar';
 import Drawer from './Drawer';
+import BottomNav from '../components/BottomNav';
+import BottomNavSheet from '../components/BottomNavSheet';
 import { Box, Snackbar, Alert, Fade, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useRouter } from 'next/router';
@@ -27,6 +29,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
   // 檢查 Token 過期
   useEffect(() => {
@@ -115,6 +118,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           flexGrow: 1, 
           p: { xs: 2, sm: 3 },
           pt: { xs: 2, sm: 3 },
+          pb: { xs: 9, sm: 3 },  // 手機版增加底部空間給 BottomNav (56px + 16px)
           mt: 8,
           width: { 
             xs: '100%', 
@@ -152,6 +156,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           登入已過期，將自動重導至登入頁面...
         </Alert>
       </Snackbar>
+
+      {/* 手機版底部導航 */}
+      <BottomNav onMoreClick={() => setMoreSheetOpen(true)} />
+      <BottomNavSheet 
+        open={moreSheetOpen} 
+        onClose={() => setMoreSheetOpen(false)} 
+      />
     </Box>
   );
 }
