@@ -10,12 +10,6 @@ import {
   Divider,
   Chip,
   Avatar,
-  ToggleButton,
-  ToggleButtonGroup,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   IconButton,
   InputAdornment,
@@ -23,6 +17,7 @@ import {
   Grow,
   CircularProgress,
   Backdrop,
+  Collapse,
 } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import { useRouter } from 'next/router';
@@ -53,9 +48,6 @@ const shimmer = keyframes`
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 `;
-
-// 登入模式
-type LoginMode = 'staff' | 'resident';
 
 // 預設 Demo 帳號
 interface DemoAccount {
@@ -92,6 +84,14 @@ const demoAccounts: DemoAccount[] = [
     color: 'success',
     description: '查看住民狀況與通知',
   },
+  { 
+    username: 'resident', 
+    role: 'RESIDENT', 
+    displayName: '住民（語音互動）', 
+    icon: <RecordVoiceOverIcon />, 
+    color: 'warning',
+    description: '直接進入語音互動介面',
+  },
 ];
 
 // 模擬住民 Persona 列表
@@ -102,11 +102,10 @@ const mockPersonas = [
 
 export default function Login() {
   const theme = useTheme();
-  const [loginMode, setLoginMode] = useState<LoginMode>('staff');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedPersona, setSelectedPersona] = useState('');
+  const [expandedResident, setExpandedResident] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -116,19 +115,11 @@ export default function Login() {
     e.preventDefault();
     setError('');
     
-    if (loginMode === 'staff') {
-      if (!username || !password) {
-        setError('請輸入帳號與密碼');
-        return;
-      }
-      await performLogin(username);
-    } else {
-      if (!selectedPersona) {
-        setError('請選擇住民');
-        return;
-      }
-      await performResidentLogin(selectedPersona);
+    if (!username || !password) {
+      setError('請輸入帳號與密碼');
+      return;
     }
+    await performLogin(username);
   };
 
   // Base64 編碼（支援 Unicode）
@@ -221,6 +212,10 @@ export default function Login() {
 
   // 快速登入（Demo 用）
   const handleQuickLogin = (account: DemoAccount) => {
+    if (account.role === 'RESIDENT') {
+      setExpandedResident(!expandedResident);
+      return;
+    }
     setUsername(account.username);
     performLogin(account.username);
   };
@@ -318,9 +313,9 @@ export default function Login() {
               </Avatar>
               <Typography 
                 variant="h4" 
-                fontWeight={700} 
                 gutterBottom
                 sx={{
+                  fontWeight: 700,
                   background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
@@ -332,43 +327,6 @@ export default function Login() {
               <Typography variant="body2" color="text.secondary">
                 Smart Care Voice Agent with SecretGuard
               </Typography>
-            </Box>
-
-            {/* 登入模式切換 */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
-              <ToggleButtonGroup
-                value={loginMode}
-                exclusive
-                onChange={(_, newMode) => newMode && setLoginMode(newMode)}
-                size="medium"
-                sx={{
-                  '& .MuiToggleButton-root': {
-                    px: 3,
-                    py: 1.25,
-                    borderRadius: '12px !important',
-                    border: 'none',
-                    mx: 0.5,
-                    transition: 'all 0.2s ease',
-                    '&.Mui-selected': {
-                      bgcolor: alpha(theme.palette.primary.main, 0.12),
-                      color: theme.palette.primary.main,
-                      fontWeight: 600,
-                      '&:hover': {
-                        bgcolor: alpha(theme.palette.primary.main, 0.18),
-                      },
-                    },
-                  },
-                }}
-              >
-                <ToggleButton value="staff">
-                  <PersonIcon sx={{ mr: 1 }} />
-                  員工登入
-                </ToggleButton>
-                <ToggleButton value="resident">
-                  <RecordVoiceOverIcon sx={{ mr: 1 }} />
-                  住民登入
-                </ToggleButton>
-              </ToggleButtonGroup>
             </Box>
 
             {/* 錯誤提示 */}
@@ -387,10 +345,9 @@ export default function Login() {
               </Box>
             </Fade>
 
-            {/* 員工登入表單 */}
-            {loginMode === 'staff' && (
-              <Fade in timeout={300}>
-                <Box component="form" onSubmit={handleSubmit}>
+            {/* 登入表單 */}
+            <Fade in timeout={300}>
+              <Box component="form" onSubmit={handleSubmit}>
                   <TextField
                     label="帳號"
                     fullWidth
@@ -475,128 +432,75 @@ export default function Login() {
 
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     {demoAccounts.map((account, index) => (
-                      <Grow in timeout={400 + index * 100} key={account.username}>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s ease',
-                            opacity: loading ? 0.6 : 1,
-                            '&:hover': loading ? {} : {
-                              borderColor: theme.palette[account.color].main,
-                              bgcolor: alpha(theme.palette[account.color].main, 0.04),
-                              transform: 'translateX(4px)',
-                            },
-                          }}
-                          onClick={() => !loading && handleQuickLogin(account)}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Avatar 
-                              sx={{ 
-                                bgcolor: alpha(theme.palette[account.color].main, 0.15),
-                                color: theme.palette[account.color].main,
-                              }}
-                            >
-                              {account.icon}
-                            </Avatar>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="subtitle1" fontWeight={600}>
-                                {account.displayName}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {account.description}
-                              </Typography>
+                      <React.Fragment key={account.username}>
+                        <Grow in timeout={400 + index * 100}>
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 2,
+                              cursor: loading ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.2s ease',
+                              opacity: loading ? 0.6 : 1,
+                              '&:hover': loading ? {} : {
+                                borderColor: theme.palette[account.color].main,
+                                bgcolor: alpha(theme.palette[account.color].main, 0.04),
+                                transform: 'translateX(4px)',
+                              },
+                            }}
+                            onClick={() => !loading && handleQuickLogin(account)}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Avatar 
+                                sx={{ 
+                                  bgcolor: alpha(theme.palette[account.color].main, 0.15),
+                                  color: theme.palette[account.color].main,
+                                }}
+                              >
+                                {account.icon}
+                              </Avatar>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                  {account.displayName}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {account.description}
+                                </Typography>
+                              </Box>
+                              <Chip
+                                size="small"
+                                label={account.username}
+                                color={account.color}
+                                variant="outlined"
+                              />
                             </Box>
-                            <Chip
-                              size="small"
-                              label={account.username}
-                              color={account.color}
-                              variant="outlined"
-                            />
-                          </Box>
-                        </Paper>
-                      </Grow>
+                          </Paper>
+                        </Grow>
+                        
+                        {/* 住民 Persona 選擇展開區 */}
+                        {account.role === 'RESIDENT' && (
+                          <Collapse in={expandedResident}>
+                            <Box sx={{ pl: 4, pt: 1, pb: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                              {mockPersonas.map((persona) => (
+                                <Chip
+                                  key={persona.id}
+                                  label={persona.displayName}
+                                  onClick={() => !loading && performResidentLogin(persona.id)}
+                                  color="warning"
+                                  variant="outlined"
+                                  sx={{ 
+                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                    '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.1) },
+                                  }}
+                                />
+                              ))}
+                            </Box>
+                          </Collapse>
+                        )}
+                      </React.Fragment>
                     ))}
                   </Box>
                 </Box>
               </Fade>
-            )}
-
-            {/* 住民登入（Persona 選擇） */}
-            {loginMode === 'resident' && (
-              <Fade in timeout={300}>
-                <Box component="form" onSubmit={handleSubmit}>
-                  <Alert 
-                    severity="info" 
-                    sx={{ mb: 3 }}
-                    icon={<RecordVoiceOverIcon />}
-                  >
-                    住民登入後將直接進入語音互動介面
-                  </Alert>
-
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel>選擇住民</InputLabel>
-                    <Select
-                      value={selectedPersona}
-                      label="選擇住民"
-                      onChange={(e) => setSelectedPersona(e.target.value)}
-                      disabled={loading}
-                    >
-                      {mockPersonas.map((persona) => (
-                        <MenuItem key={persona.id} value={persona.id}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                            <Avatar 
-                              sx={{ 
-                                width: 32, 
-                                height: 32, 
-                                fontSize: 14,
-                                bgcolor: theme.palette.primary.main,
-                              }}
-                            >
-                              {persona.displayName[0]}
-                            </Avatar>
-                            <Typography sx={{ flex: 1 }}>{persona.displayName}</Typography>
-                            <Chip
-                              size="small"
-                              label={persona.status === 'active' ? '活躍' : '非活躍'}
-                              color={persona.status === 'active' ? 'success' : 'default'}
-                            />
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    size="large"
-                    disabled={loading || !selectedPersona}
-                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <RecordVoiceOverIcon />}
-                    sx={{ 
-                      mt: 4,
-                      py: 1.5,
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}`,
-                    }}
-                  >
-                    {loading ? '進入中...' : '開始語音互動'}
-                  </Button>
-
-                  <Typography 
-                    variant="caption" 
-                    color="text.secondary" 
-                    display="block" 
-                    sx={{ mt: 3, textAlign: 'center' }}
-                  >
-                    住民身分由系統預先設定，實際部署應連接機構帳號系統
-                  </Typography>
-                </Box>
-              </Fade>
-            )}
           </Paper>
         </Grow>
 
