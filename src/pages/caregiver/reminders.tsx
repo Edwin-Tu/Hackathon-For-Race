@@ -24,7 +24,10 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import ReminderCard from '../../components/ReminderCard';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -147,6 +150,8 @@ const mockReminders: Reminder[] = [
 ];
 
 export default function Reminders() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tabValue, setTabValue] = useState(0);
   const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -293,6 +298,27 @@ export default function Reminders() {
     </Table>
   );
 
+  // 渲染手機版卡片列表
+  const renderCardList = (data: Reminder[]) => (
+    <Box sx={{ px: 1 }}>
+      {data.length === 0 ? (
+        <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+          沒有提醒
+        </Typography>
+      ) : (
+        data.map((reminder) => (
+          <ReminderCard
+            key={reminder.id}
+            reminder={reminder}
+            onComplete={handleComplete}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ))
+      )}
+    </Box>
+  );
+
   return (
     <Container maxWidth="lg" sx={{ py: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -315,10 +341,20 @@ export default function Reminders() {
       </Paper>
 
       {/* 提醒列表 */}
-      <Paper>
-        {tabValue === 0 && renderTable(pendingReminders)}
-        {tabValue === 1 && renderTable(completedReminders)}
-        {tabValue === 2 && renderTable(missedReminders)}
+      <Paper sx={{ overflow: 'hidden' }}>
+        {isMobile ? (
+          <>
+            {tabValue === 0 && renderCardList(pendingReminders)}
+            {tabValue === 1 && renderCardList(completedReminders)}
+            {tabValue === 2 && renderCardList(missedReminders)}
+          </>
+        ) : (
+          <>
+            {tabValue === 0 && renderTable(pendingReminders)}
+            {tabValue === 1 && renderTable(completedReminders)}
+            {tabValue === 2 && renderTable(missedReminders)}
+          </>
+        )}
       </Paper>
 
       {/* 編輯/新增對話框 */}
