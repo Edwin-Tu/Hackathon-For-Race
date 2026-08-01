@@ -1,0 +1,11 @@
+{
+  "name": "hackathon-video-infra",
+  "version": "1.0.0",
+  "scripts": {
+    "validate": "sam validate --template template.yaml",
+    "build": "sam build --template template.yaml",
+    "deploy:dev": "sam deploy --config-env dev --guided",
+    "deploy:prod": "sam deploy --config-env prod",
+    "deploy": "sam deploy --guided"
+  }
+}
