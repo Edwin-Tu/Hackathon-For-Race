@@ -405,7 +405,7 @@ export default function AuditLog() {
                   <TableRow>
                     <TableCell colSpan={9} sx={{ py: 0 }}>
                       <Collapse in={expandedRow === event.id}>
-                        <Box sx={{ p: 2, bgcolor: 'grey.50' }}>
+                        <Box sx={{ p: 2, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
                           <Typography variant="body2">
                             <strong>Request ID:</strong> {event.requestId}
                           </Typography>

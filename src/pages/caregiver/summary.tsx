@@ -177,14 +177,14 @@ export default function Summary() {
       {/* 摘要卡片 */}
       <Grid container spacing={3}>
         {filteredSummaries.length === 0 ? (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Paper sx={{ p: 4, textAlign: 'center' }}>
               <Typography color="text.secondary">沒有符合條件的摘要</Typography>
             </Paper>
           </Grid>
         ) : (
           filteredSummaries.map((summary) => (
-            <Grid item xs={12} key={summary.id}>
+            <Grid size={{ xs: 12 }} key={summary.id}>
               <Card>
                 <CardContent>
                   {/* 標題列 */}
@@ -201,16 +201,16 @@ export default function Summary() {
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                       <Chip
                         size="small"
-                        label={reviewStatusConfig[summary.reviewStatus].label}
-                        color={reviewStatusConfig[summary.reviewStatus].color}
+                        label={reviewStatusConfig[summary.reviewStatus]?.label ?? summary.reviewStatus}
+                        color={reviewStatusConfig[summary.reviewStatus]?.color ?? 'default'}
                       />
                       <Chip size="small" label={`${summary.sourceEvents.length} 個來源事件`} variant="outlined" />
                     </Box>
                   </Box>
 
                   {/* 摘要內容 */}
-                  <Paper sx={{ p: 2, bgcolor: 'grey.50', mb: 2 }}>
-                    <Typography variant="body1">{summary.summary}</Typography>
+                  <Paper sx={{ p: 2, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50', mb: 2 }}>
+                    <Typography variant="body1" color="text.primary">{summary.summary}</Typography>
                   </Paper>
 
                   {/* 來源事件展開按鈕 */}
@@ -259,7 +259,7 @@ export default function Summary() {
                                 </Typography>
                               </Box>
                             }
-                            secondaryTypographyProps={{ component: 'div' }}
+                            slotProps={{ secondary: { component: 'div' } as any }}
                           />
                         </ListItem>
                       ))}

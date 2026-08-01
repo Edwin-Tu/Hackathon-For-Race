@@ -144,7 +144,7 @@ export default function FamilyDashboard() {
       </Typography>
 
       {/* 快速入口 */}
-      <Paper sx={{ p: 2, mb: 3, bgcolor: 'primary.light' }}>
+      <Paper sx={{ p: 2, mb: 3, bgcolor: 'primary.main' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Box>
             <Typography variant="h6" color="primary.contrastText">
@@ -161,6 +161,7 @@ export default function FamilyDashboard() {
                 color="inherit"
                 startIcon={<NotificationsIcon />}
                 onClick={() => router.push('/family/Notifications')}
+                sx={{ color: 'primary.main' }}
               >
                 通知中心
               </Button>
@@ -169,6 +170,7 @@ export default function FamilyDashboard() {
               variant="outlined"
               color="inherit"
               onClick={() => router.push('/family/Authorizations')}
+              sx={{ borderColor: 'primary.contrastText', color: 'primary.contrastText' }}
             >
               授權管理
             </Button>
@@ -178,7 +180,7 @@ export default function FamilyDashboard() {
 
       <Grid container spacing={{ xs: 2, sm: 3 }}>
         {/* 住民摘要卡片 */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Typography variant="h6" gutterBottom>
             住民狀況
           </Typography>
@@ -206,8 +208,8 @@ export default function FamilyDashboard() {
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Chip
-                        label={moodTrendConfig[resident.moodTrend].label}
-                        color={moodTrendConfig[resident.moodTrend].color}
+                        label={moodTrendConfig[resident.moodTrend]?.label ?? resident.moodTrend}
+                        color={moodTrendConfig[resident.moodTrend]?.color ?? 'default'}
                         icon={<MoodIcon />}
                       />
                       {resident.recentAlerts > 0 && (
@@ -217,16 +219,22 @@ export default function FamilyDashboard() {
                   </Box>
 
                   {/* 今日摘要 */}
-                  <Paper sx={{ p: { xs: 1.5, sm: 2 }, bgcolor: 'grey.50', mb: { xs: 1.5, sm: 2 } }}>
+                  <Paper 
+                    sx={{ 
+                      p: { xs: 1.5, sm: 2 }, 
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50', 
+                      mb: { xs: 1.5, sm: 2 } 
+                    }}
+                  >
                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                       今日摘要
                     </Typography>
-                    <Typography variant="body1">{resident.todaySummary}</Typography>
+                    <Typography variant="body1" color="text.primary">{resident.todaySummary}</Typography>
                   </Paper>
 
                   {/* 快速資訊 */}
                   <Grid container spacing={2}>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <MedicationIcon color="error" />
                         <Box>
@@ -239,7 +247,7 @@ export default function FamilyDashboard() {
                         </Box>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <DirectionsWalkIcon color="success" />
                         <Box>
@@ -252,7 +260,7 @@ export default function FamilyDashboard() {
                         </Box>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <EventIcon color="warning" />
                         <Box>
@@ -263,7 +271,7 @@ export default function FamilyDashboard() {
                         </Box>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <WarningIcon color={resident.recentAlerts > 0 ? 'error' : 'disabled'} />
                         <Box>
@@ -288,7 +296,7 @@ export default function FamilyDashboard() {
         </Grid>
 
         {/* 通知側欄 */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: { xs: 1.5, sm: 2 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
@@ -322,7 +330,7 @@ export default function FamilyDashboard() {
                       primary={
                         <Typography
                           variant="body2"
-                          fontWeight={notification.read ? 'normal' : 'bold'}
+                          sx={{ fontWeight: notification.read ? 'normal' : 'bold' }}
                         >
                           {notification.title}
                         </Typography>
