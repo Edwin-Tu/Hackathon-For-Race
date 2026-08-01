@@ -176,7 +176,7 @@ export default function FamilyDashboard() {
         </Box>
       </Paper>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, sm: 3 }}>
         {/* 住民摘要卡片 */}
         <Grid item xs={12} md={8}>
           <Typography variant="h6" gutterBottom>
@@ -217,7 +217,7 @@ export default function FamilyDashboard() {
                   </Box>
 
                   {/* 今日摘要 */}
-                  <Paper sx={{ p: 2, bgcolor: 'grey.50', mb: 2 }}>
+                  <Paper sx={{ p: { xs: 1.5, sm: 2 }, bgcolor: 'grey.50', mb: { xs: 1.5, sm: 2 } }}>
                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                       今日摘要
                     </Typography>
@@ -289,7 +289,7 @@ export default function FamilyDashboard() {
 
         {/* 通知側欄 */}
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
+          <Paper sx={{ p: { xs: 1.5, sm: 2 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
                 <Badge badgeContent={unreadCount} color="error" sx={{ mr: 1 }}>
@@ -347,7 +347,7 @@ export default function FamilyDashboard() {
           </Paper>
 
           {/* 快速功能 */}
-          <Paper sx={{ p: 2, mt: 2 }}>
+          <Paper sx={{ p: { xs: 1.5, sm: 2 }, mt: 2 }}>
             <Typography variant="h6" gutterBottom>
               快速功能
             </Typography>
