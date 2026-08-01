@@ -1,0 +1,28 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "hackathon-video-prod"
+resolve_s3 = true
+s3_prefix = "hackathon-video"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "Environment=prod ProjectName=hackathon-video"
+
+[dev.deploy.parameters]
+stack_name = "hackathon-video-dev"
+resolve_s3 = true
+s3_prefix = "hackathon-video-dev"
+region = "us-west-2"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "Environment=dev ProjectName=hackathon-video"
+
+[prod.deploy.parameters]
+stack_name = "hackathon-video-prod"
+resolve_s3 = true
+s3_prefix = "hackathon-video-prod"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "Environment=prod ProjectName=hackathon-video"

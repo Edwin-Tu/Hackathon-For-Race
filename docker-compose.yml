@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Next.js Application
+  # ==========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-care-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - smart-care-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================
+  # MySQL Database (Local Development)
+  # ==========================================
+  mysql:
+    image: mysql:8.0
+    container_name: smart-care-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-smart_care_agent}
+      MYSQL_USER: ${MYSQL_USER:-smart_care_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d
+    networks:
+      - smart-care-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Redis (Caching & Sessions)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: smart-care-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - smart-care-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Prisma Studio (Database GUI)
+  # ==========================================
+  prisma-studio:
+    image: node:20-alpine
+    container_name: smart-care-prisma-studio
+    working_dir: /app
+    command: sh -c "npm install prisma && npx prisma studio"
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./prisma:/app/prisma
+      - ./package.json:/app/package.json
+    networks:
+      - smart-care-network
+    depends_on:
+      - mysql
+    profiles:
+      - dev
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  smart-care-network:
+    driver: bridge
