@@ -37,6 +37,10 @@ import EventIcon from '@mui/icons-material/Event';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import HistoryIcon from '@mui/icons-material/History';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 
 // Persona 類型
 interface Persona {
@@ -220,6 +224,7 @@ export default function ResidentDetail() {
 
   const currentPersona = mockPersonas.find((p) => p.id === selectedPersona);
   const currentStats = mockStats[selectedPersona];
+  const currentHealthInfo = mockHealthInfo[selectedPersona];
 
   // 切換 Persona
   const handleSwitchPersona = (personaId: string) => {
@@ -307,8 +312,9 @@ export default function ResidentDetail() {
 
       {/* 分頁內容 */}
       <Paper sx={{ mb: 2 }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
           <Tab label="個人資料" />
+          <Tab label="健康資訊" />
           <Tab label="日常作息" />
           <Tab label="最近動態" />
           <Tab label="Persona 設定" />
@@ -364,8 +370,135 @@ export default function ResidentDetail() {
         </Grid>
       )}
 
+      {/* 健康資訊 */}
+      {tabValue === 1 && currentHealthInfo && (
+        <Grid container spacing={3}>
+          {/* 生理監測 */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <MonitorHeartIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="error" />
+                  生理監測
+                </Typography>
+                <List dense>
+                  <ListItem>
+                    <ListItemText primary="血壓" secondary={currentHealthInfo.vitals.bloodPressure || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="血糖" secondary={currentHealthInfo.vitals.bloodSugar ? `${currentHealthInfo.vitals.bloodSugar} mg/dL` : '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="體溫" secondary={currentHealthInfo.vitals.temperature ? `${currentHealthInfo.vitals.temperature}°C` : '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="脈搏" secondary={currentHealthInfo.vitals.pulse ? `${currentHealthInfo.vitals.pulse} bpm` : '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="最後量測"
+                      secondary={currentHealthInfo.vitals.lastMeasuredAt?.toLocaleString('zh-TW') || '無紀錄'}
+                    />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* 病史與用藥 */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <LocalHospitalIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="primary" />
+                  病史與用藥
+                </Typography>
+                <List dense>
+                  <ListItem>
+                    <ListItemText
+                      primary="慢性病"
+                      secondary={currentHealthInfo.medicalHistory.chronicConditions.length > 0
+                        ? currentHealthInfo.medicalHistory.chronicConditions.join('、')
+                        : '無'}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="過敏史"
+                      secondary={currentHealthInfo.medicalHistory.allergies.length > 0
+                        ? currentHealthInfo.medicalHistory.allergies.join('、')
+                        : '無'}
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="目前用藥"
+                      secondary={currentHealthInfo.medicalHistory.currentMedications.length > 0
+                        ? currentHealthInfo.medicalHistory.currentMedications.join('、')
+                        : '無'}
+                    />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* 生活方式 */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <RestaurantMenuIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="success" />
+                  生活方式
+                </Typography>
+                <List dense>
+                  <ListItem>
+                    <ListItemText primary="飲食偏好" secondary={currentHealthInfo.lifestyle.dietPreference || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="運動習慣" secondary={currentHealthInfo.lifestyle.exerciseRoutine || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="睡眠模式" secondary={currentHealthInfo.lifestyle.sleepPattern || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="特殊備註" secondary={currentHealthInfo.lifestyle.specialNotes || '無紀錄'} />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* 緊急/行政資料 */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <ContactPhoneIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="warning" />
+                  緊急/行政資料
+                </Typography>
+                <List dense>
+                  <ListItem>
+                    <ListItemText primary="緊急聯絡人" secondary={currentHealthInfo.emergency.contactName || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="聯絡電話" secondary={currentHealthInfo.emergency.contactPhone || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="保險資訊" secondary={currentHealthInfo.emergency.insurance || '無紀錄'} />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText primary="照護注意事項" secondary={currentHealthInfo.emergency.careNotes || '無紀錄'} />
+                  </ListItem>
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
       {/* 日常作息 */}
-      {tabValue === 1 && (
+      {tabValue === 2 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -396,7 +529,7 @@ export default function ResidentDetail() {
       )}
 
       {/* 最近動態 */}
-      {tabValue === 2 && (
+      {tabValue === 3 && (
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Card>
@@ -439,7 +572,7 @@ export default function ResidentDetail() {
       )}
 
       {/* Persona 設定 */}
-      {tabValue === 3 && (
+      {tabValue === 4 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
