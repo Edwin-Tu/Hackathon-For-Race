@@ -1,4 +1,4 @@
-"""Repository contracts shared by the Tool Gateway handlers."""
+"""Repository contracts shared by the Tool Gateway and reminder scheduler."""
 
 from __future__ import annotations
 
@@ -35,6 +35,9 @@ class Reminder:
     created_at: datetime
     created_by: str
     idempotency_key: str | None = None
+    status: str = "scheduled"
+    description: str | None = None
+    triggered_at: datetime | None = None
 
 
 @dataclass
@@ -49,7 +52,7 @@ class ScheduleItem:
 
 @runtime_checkable
 class CareRepository(Protocol):
-    """Storage contract consumed by ToolHandlers.
+    """Storage contract consumed by ToolHandlers and ReminderScheduler.
 
     The Tool Gateway remains storage agnostic. Implementations may persist to
     memory, MySQL, or another transactional store, but must preserve this
@@ -83,3 +86,31 @@ class CareRepository(Protocol):
         persona_id: str,
         target_date: date | None = None,
     ) -> list[ScheduleItem]: ...
+
+    def claim_due_reminders(
+        self,
+        now: datetime,
+        *,
+        limit: int,
+        missed_after_seconds: int,
+    ) -> list[Reminder]: ...
+
+    def mark_reminder_triggered(
+        self,
+        reminder_id: str,
+        *,
+        triggered_at: datetime,
+    ) -> bool: ...
+
+    def mark_reminder_failed(
+        self,
+        reminder_id: str,
+        *,
+        failed_at: datetime,
+    ) -> bool: ...
+
+    def recover_stale_reminders(
+        self,
+        *,
+        stale_before: datetime,
+    ) -> int: ...

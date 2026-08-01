@@ -186,9 +186,9 @@ uv run python scripts/evaluate_input_guard.py \
   --output reports/input_guard_evaluation.json
 ```
 
-目前驗證結果：
+目前驗證基準：
 
-- 專案測試：100 passed
+- 專案測試：129 passed（Cloud-ready build）
 - Input Guard deterministic dataset：180 / 180
 - LLM01：30 / 30
 - LLM02：30 / 30
@@ -205,7 +205,155 @@ uv run python scripts/evaluate_input_guard.py \
 
 ## 尚未完成
 
-- JWT／Cognito 取代 Demo AuthContext
+- JWT／Cognito 取代 Demo AuthContext／Bearer Token
 - Input Guard 稽核寫入 `audit_logs`
 - Output Guard（輸出守衛）
-- Whisper／TTS／UI 端到端整合
+- Confirmation Store／Output Event Store 改成跨 Task 的持久化儲存
+
+## 8. 本機 Whisper 語音輸入
+
+安裝語音額外依賴：
+
+```bash
+uv sync --extra voice
+```
+
+先載入模型：
+
+```bash
+uv run python -m scripts.whisper_check --load-model
+```
+
+轉錄本機音訊：
+
+```bash
+uv run python -m scripts.whisper_check sample.wav --language zh
+```
+
+只轉錄、不進 Agent：
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/voice/transcribe \
+  -F "audio=@sample.wav" \
+  -F "language=zh" | uv run python -m json.tool
+```
+
+完整語音回合：
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/voice/turn \
+  -F "audio=@sample.wav" \
+  -F "language=zh" \
+  -F "session_id=voice-demo-001" | uv run python -m json.tool
+```
+
+音訊會暫存於作業系統臨時檔案，轉錄完成後立即刪除；不會長期保存原始音訊。
+
+## 9. 提醒到點觸發與本機播報
+
+FastAPI 啟動時會啟動背景 Scheduler：
+
+```text
+reminders(scheduled)
+→ 原子 claim 為 triggering
+→ OutputEnvelope
+→ event store + console + 本機鈴聲/TTS
+→ triggered / failed / missed
+```
+
+查看 Scheduler 狀態：
+
+```bash
+curl -sS http://127.0.0.1:8000/api/reminders/status \
+  | uv run python -m json.tool
+```
+
+手動執行一次輪詢：
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/reminders/run-once \
+  | uv run python -m json.tool
+```
+
+直接建立十秒後提醒並測試本機鈴聲與 TTS：
+
+```bash
+uv run python -m scripts.reminder_trigger_demo \
+  --title "喝水" \
+  --delay-seconds 10
+```
+
+macOS 預設使用 `afplay` 播放系統提示音，並以 `say` 播報。音訊後端不可用時，Console 與 Output Event Store 仍可完成遞送，不會遺失提醒。
+
+未接 UI 前，可以輪詢輸出事件：
+
+```bash
+curl -sS "http://127.0.0.1:8000/api/output/events?after_id=0&limit=50" \
+  | uv run python -m json.tool
+```
+
+## 目前完成度
+
+- Input Guard：完成
+- Agent + Skill + Bedrock：完成
+- Tool Gateway：完成
+- MySQL／RDS `events` / `care_events` / `reminders` 相容 Adapter：完成
+- Confirmation Resume：完成
+- Whisper 後端：完成
+- Reminder Scheduler：完成
+- 本機鈴聲與 TTS：完成
+- Browser Validation UI、錄音與 Browser TTS：完成
+- ECS Fargate 雲端部署範本：完成，仍需使用實際 AWS 帳號部署驗證
+
+## 10. 瀏覽器驗證 UI
+
+本版本內建無需 Node 建置的驗證頁面。啟動 FastAPI 後開啟：
+
+```text
+http://127.0.0.1:8000/demo
+```
+
+驗證台提供：
+
+- 瀏覽器麥克風錄音與音訊檔上傳
+- Whisper 單獨轉錄與完整 `/api/voice/turn`
+- 文字 Agent 與 Input Guard 獨立測試
+- Input Guard 風險、Agent 狀態與 Token 用量
+- Tool Gateway 的最小化執行證據與 `record_id`
+- 高風險工具二次確認按鈕
+- Reminder Scheduler 狀態、立即輪詢與最近輸出事件
+- 原始 JSON 除錯檢視
+
+UI 不接受角色、Persona 或授權範圍；這些仍由後端可信任的
+`AuthContext` 建立。動態 API 內容使用 `textContent` 呈現，避免把模型文字
+當成 HTML 執行。
+
+## AWS Cloud Deployment
+
+主要部署架構：
+
+```text
+API Gateway HTTPS
+→ VPC Link
+→ Internal ALB
+→ ECS Fargate
+→ RDS MySQL + Bedrock Runtime
+```
+
+敏感值由 Secrets Manager 注入；ECS Task 與 RDS 留在私有 VPC。`CARE_EVENT_TABLE=auto` 同時支援本機 `events` 與 Edwin RDS `care_events`。
+
+完整步驟：
+
+- `docs/cloud/CLOUD_DEPLOYMENT.md`
+- `docs/cloud/EDWIN_INTEGRATION.md`
+- `docs/cloud/SECURITY_ROTATION_REQUIRED.md`
+
+部署前：
+
+```bash
+python3 scripts/cloud/secret_scan.py .
+python3 scripts/cloud/preflight.py
+scripts/cloud/deploy.sh
+```
+
+`infra/apprunner/` 只保留給既有 App Runner 客戶，不是新的預設部署路徑。

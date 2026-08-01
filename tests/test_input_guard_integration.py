@@ -129,7 +129,7 @@ def test_attack_is_blocked_before_bedrock_and_tools() -> None:
                 },
             )
     data = response.json()
-    assert data["success"] is True
+    assert data["success"] is False
     assert data["error_type"] == "SECURITY_POLICY_BLOCK"
     assert data["operation_completed"] is False
     assert data["tool_events"] == []

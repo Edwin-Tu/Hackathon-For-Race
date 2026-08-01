@@ -11,6 +11,9 @@ from app.models import (
     ActionStatus,
     ChatRequest,
     ChatResponse,
+    ConfirmationDecision,
+    ConfirmationRequest,
+    InputGuardEvidence,
     ToolEvent,
     UsageInfo,
 )
@@ -45,6 +48,29 @@ SUCCESS_CLAIMS = (
     "已完成",
     "已新增",
 )
+CONFIRMATION_PHRASES = {
+    "確認",
+    "確定",
+    "同意",
+    "好",
+    "好的",
+    "可以",
+    "是",
+    "是的",
+    "執行",
+    "確認執行",
+    "確認建立",
+    "沒問題",
+}
+CANCELLATION_PHRASES = {
+    "取消",
+    "不要",
+    "不用了",
+    "先不要",
+    "否",
+    "取消操作",
+    "不要執行",
+}
 
 SYSTEM_PROMPT_TEMPLATE = """你是一個智慧長照生活協助系統。請嚴格遵守以下規則：
 
@@ -223,6 +249,35 @@ class AgentService:
                 return "這項操作尚未完成，請稍後再試。"
         return reply
 
+    @staticmethod
+    def _parse_confirmation_decision(message: str) -> ConfirmationDecision | None:
+        """Recognize a short, explicit confirmation/cancellation utterance."""
+        normalized = "".join(
+            ch for ch in message.strip().lower()
+            if ch not in " \t\r\n，。！？!?、,."
+        )
+        if normalized in CONFIRMATION_PHRASES:
+            return ConfirmationDecision.CONFIRM
+        if normalized in CANCELLATION_PHRASES:
+            return ConfirmationDecision.CANCEL
+        return None
+
+    async def confirm(self, request: ConfirmationRequest) -> ChatResponse:
+        """Resolve an explicit confirmation endpoint without calling Bedrock."""
+        request_id = str(uuid.uuid4())
+        auth_context = self._create_demo_auth_context(request.session_id, request_id)
+        if request.decision == ConfirmationDecision.CANCEL:
+            return await self._handle_cancellation(
+                request.confirmation_token,
+                auth_context,
+                request.session_id,
+            )
+        return await self._handle_confirmation(
+            request.confirmation_token,
+            auth_context,
+            request.session_id,
+        )
+
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat request with constrained Bedrock tool use."""
         session_id = request.session_id or str(uuid.uuid4())
@@ -250,7 +305,7 @@ class AgentService:
         )
         if not guard_outcome.allowed:
             return ChatResponse(
-                success=True,
+                success=False,
                 reply=(
                     "我無法協助處理這項請求。"
                     + (
@@ -270,6 +325,42 @@ class AgentService:
             )
 
         guarded_message = guard_outcome.sanitized_text or request.message
+
+        # Plain-language or voice confirmation resumes the one pending action
+        # bound to this trusted session/user.  This path never calls Bedrock.
+        decision = self._parse_confirmation_decision(guarded_message)
+        if decision is not None:
+            pending_token, _, pending_error = self._gateway.get_pending_confirmation(
+                auth_context
+            )
+            if pending_token is None:
+                return ChatResponse(
+                    success=False,
+                    reply=pending_error or "目前沒有待確認操作。",
+                    model="",
+                    session_id=session_id,
+                    usage=UsageInfo(),
+                    error_type="NO_PENDING_CONFIRMATION",
+                    error_message=pending_error or "目前沒有待確認操作",
+                    operation_completed=False,
+                    action_status=ActionStatus.NO_ACTION,
+                    tool_events=[],
+                    input_guard=guard_outcome.evidence,
+                )
+            if decision == ConfirmationDecision.CANCEL:
+                return await self._handle_cancellation(
+                    pending_token,
+                    auth_context,
+                    session_id,
+                    input_guard=guard_outcome.evidence,
+                )
+            return await self._handle_confirmation(
+                pending_token,
+                auth_context,
+                session_id,
+                input_guard=guard_outcome.evidence,
+            )
+
         self._gateway.reset_turn_count(request_id)
         intent = classify_intent(guarded_message)
         skills = self._skill_registry.route(
@@ -289,7 +380,7 @@ class AgentService:
 
         if skills.blocked:
             return ChatResponse(
-                success=True,
+                success=False,
                 reply=skills.safe_response or "這項請求因安全限制無法處理。",
                 model="",
                 session_id=session_id,
@@ -492,8 +583,10 @@ class AgentService:
         confirmation_token: str,
         auth_context: AuthContext,
         session_id: str,
+        *,
+        input_guard: InputGuardEvidence | None = None,
     ) -> ChatResponse:
-        """Handle confirmation of a pending tool operation."""
+        """Execute the frozen server-side ToolCall without calling Bedrock."""
         gateway_result = self._gateway.confirm_and_execute(
             confirmation_token, auth_context
         )
@@ -510,6 +603,7 @@ class AgentService:
                 operation_completed=True,
                 action_status=ActionStatus.COMPLETED,
                 tool_events=[tool_event],
+                input_guard=input_guard,
             )
 
         action_status = (
@@ -519,7 +613,7 @@ class AgentService:
         )
         return ChatResponse(
             success=False,
-            reply="",
+            reply=gateway_result.message or "確認失敗，這項操作尚未完成。",
             model="",
             session_id=session_id,
             usage=UsageInfo(),
@@ -528,6 +622,37 @@ class AgentService:
             operation_completed=False,
             action_status=action_status,
             tool_events=[tool_event],
+            input_guard=input_guard,
+        )
+
+    async def _handle_cancellation(
+        self,
+        confirmation_token: str,
+        auth_context: AuthContext,
+        session_id: str,
+        *,
+        input_guard: InputGuardEvidence | None = None,
+    ) -> ChatResponse:
+        """Cancel a pending operation without invoking Bedrock or a tool handler."""
+        gateway_result = self._gateway.cancel_confirmation(
+            confirmation_token, auth_context
+        )
+        tool_event = self._make_tool_event(gateway_result)
+        cancelled = gateway_result.status == ToolStatus.CANCELLED
+        return ChatResponse(
+            success=cancelled,
+            reply=gateway_result.message,
+            model="",
+            session_id=session_id,
+            usage=UsageInfo(),
+            error_type=None if cancelled else gateway_result.error_code,
+            error_message=None if cancelled else gateway_result.message,
+            operation_completed=False,
+            action_status=(
+                ActionStatus.CANCELLED if cancelled else ActionStatus.DENIED
+            ),
+            tool_events=[tool_event],
+            input_guard=input_guard,
         )
 
     def _make_tool_result_block_from_gateway(

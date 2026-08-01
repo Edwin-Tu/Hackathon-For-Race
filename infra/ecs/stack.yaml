@@ -1,0 +1,463 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Secure Care Agent on ECS Fargate with API Gateway HTTPS, private RDS, and Bedrock Runtime VPC endpoint.
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: smart-care-agent
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9-_]{3,39}'
+  EcrImageUri:
+    Type: String
+    Description: Full ECR image URI including tag.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two private subnets in different Availability Zones.
+  PrivateRouteTableIds:
+    Type: List<String>
+    Description: Route table IDs associated with the private subnets, used by the S3 gateway endpoint.
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  DatabaseUrlSecretArn:
+    Type: String
+    Description: Secrets Manager ARN whose value is the complete mysql:// DATABASE_URL.
+  ApiBearerTokenSecretArn:
+    Type: String
+    Description: Secrets Manager ARN whose value is the demo API bearer token.
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+  DemoUserId:
+    Type: String
+  DemoPersonaId:
+    Type: String
+  WhisperModelSize:
+    Type: String
+    Default: small
+    AllowedValues: [tiny, base, small, medium]
+  CreatePrivateEndpoints:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Set false only when equivalent VPC endpoints or NAT egress already exist.
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Conditions:
+  CreateEndpoints: !Equals [!Ref CreatePrivateEndpoints, 'true']
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ServiceName}-cluster'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ServiceName}'
+      RetentionInDays: !Ref LogRetentionDays
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Smart Care ECS tasks
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-tasks'
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internal ALB for Smart Care Agent
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-alb'
+
+  VpcLinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: API Gateway VPC Link to internal ALB
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-vpc-link'
+
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private AWS service endpoints for Smart Care ECS tasks
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !GetAtt TaskSecurityGroup.GroupId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-endpoints'
+
+  AlbIngressFromVpcLink:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8000
+      SourceSecurityGroupId: !GetAtt VpcLinkSecurityGroup.GroupId
+      Description: API Gateway VPC Link to internal ALB
+
+  TaskIngressFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt TaskSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8000
+      SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      Description: Internal ALB to FastAPI tasks
+
+  RdsIngressFromTasks:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt TaskSecurityGroup.GroupId
+      Description: Smart Care ECS tasks to RDS MySQL
+
+  EcrApiEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt EndpointSecurityGroup.GroupId]
+
+  EcrDkrEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt EndpointSecurityGroup.GroupId]
+
+  LogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt EndpointSecurityGroup.GroupId]
+
+  SecretsManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt EndpointSecurityGroup.GroupId]
+
+  BedrockRuntimeEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock-runtime'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt EndpointSecurityGroup.GroupId]
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateEndpoints
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Gateway
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      RouteTableIds: !Ref PrivateRouteTableIds
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadRuntimeSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DatabaseUrlSecretArn
+                  - !Ref ApiBearerTokenSecretArn
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeBedrock
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0'
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref ServiceName
+      Cpu: '2048'
+      Memory: '4096'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref EcrImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+              AppProtocol: http
+          Environment:
+            - Name: APP_ENV
+              Value: cloud
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: BEDROCK_MODEL_ID
+              Value: !Ref BedrockModelId
+            - Name: API_AUTH_ENABLED
+              Value: 'true'
+            - Name: CARE_REPOSITORY_BACKEND
+              Value: mysql
+            - Name: CARE_EVENT_TABLE
+              Value: auto
+            - Name: DATABASE_PING_ON_STARTUP
+              Value: 'true'
+            - Name: DATABASE_SSL_MODE
+              Value: verify_identity
+            - Name: DATABASE_SSL_CA
+              Value: /opt/aws/rds-global-bundle.pem
+            - Name: DEMO_USER_ID
+              Value: !Ref DemoUserId
+            - Name: DEMO_PERSONA_ID
+              Value: !Ref DemoPersonaId
+            - Name: INPUT_GUARD_ENABLED
+              Value: 'true'
+            - Name: INPUT_GUARD_FAIL_CLOSED
+              Value: 'true'
+            - Name: WHISPER_ENABLED
+              Value: 'true'
+            - Name: WHISPER_MODEL_SIZE
+              Value: !Ref WhisperModelSize
+            - Name: WHISPER_DEVICE
+              Value: cpu
+            - Name: WHISPER_COMPUTE_TYPE
+              Value: int8
+            - Name: WHISPER_DOWNLOAD_ROOT
+              Value: /opt/models
+            - Name: MAX_AUDIO_BYTES
+              Value: '8388608'
+            - Name: REMINDER_SCHEDULER_ENABLED
+              Value: 'true'
+            - Name: LOCAL_ALARM_ENABLED
+              Value: 'false'
+            - Name: LOCAL_TTS_ENABLED
+              Value: 'false'
+            - Name: VOICE_TURN_LOCAL_TTS_ENABLED
+              Value: 'false'
+          Secrets:
+            - Name: DATABASE_URL
+              ValueFrom: !Ref DatabaseUrlSecretArn
+            - Name: API_BEARER_TOKEN
+              ValueFrom: !Ref ApiBearerTokenSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - >-
+                python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 180
+
+  InternalLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Type: application
+      IpAddressType: ipv4
+      Subnets: !Ref PrivateSubnetIds
+      SecurityGroups: [!GetAtt LoadBalancerSecurityGroup.GroupId]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8000
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 20
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '15'
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref InternalLoadBalancer
+      Port: 8000
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
+      - RdsIngressFromTasks
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      DesiredCount: 1
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      HealthCheckGracePeriodSeconds: 240
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!GetAtt TaskSecurityGroup.GroupId]
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8000
+          TargetGroupArn: !Ref TargetGroup
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ServiceName}-api'
+      ProtocolType: HTTP
+      DisableExecuteApiEndpoint: false
+
+  ApiVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub '${ServiceName}-link'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!GetAtt VpcLinkSecurityGroup.GroupId]
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      IntegrationUri: !Ref Listener
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref ApiVpcLink
+      PayloadFormatVersion: '1.0'
+      TimeoutInMillis: 30000
+      RequestParameters:
+        'overwrite:path': '$request.path'
+
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+
+Outputs:
+  ServiceUrl:
+    Description: Public HTTPS endpoint provided by API Gateway.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  ValidationUiUrl:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/demo'
+  ClusterName:
+    Value: !Ref Cluster
+  EcsServiceName:
+    Value: !Ref Service
+  TaskSecurityGroupId:
+    Value: !GetAtt TaskSecurityGroup.GroupId

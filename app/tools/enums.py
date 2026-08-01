@@ -64,6 +64,7 @@ class ToolStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     DENIED = "denied"
+    CANCELLED = "cancelled"
 
 
 class RiskLevel(str, Enum):

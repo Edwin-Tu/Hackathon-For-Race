@@ -1,6 +1,6 @@
 [project]
 name = "hackathon-for-race"
-version = "0.3.0"
+version = "0.7.0"
 description = "Secure eldercare Agent with Input Guard, Skills, Tool Gateway, and MySQL persistence"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -11,8 +11,14 @@ dependencies = [
     "httpx>=0.28.1",
     "mysql-connector-python>=9.0.0",
     "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.20",
     "python-dotenv>=1.2.2",
     "uvicorn[standard]>=0.52.0",
+]
+
+[project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.1.0",
 ]
 
 [dependency-groups]
@@ -20,4 +26,20 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*", "secretguard*", "scripts*"]
+exclude = ["tests*", "infra*", "docs*", "prisma*", "database*", "backend*", "reports*"]
+
+[tool.setuptools.package-data]
+app = ["static/demo/*"]
+secretguard = [
+    "attack_classifier/*.json",
+    "risk_scoring/*.json",
+    "skill_router/*.json",
 ]

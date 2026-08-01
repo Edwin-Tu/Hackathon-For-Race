@@ -76,7 +76,7 @@ async def test_security_refusal_short_circuits_before_bedrock():
     )
 
     provider.chat.assert_not_awaited()
-    assert response.success is True
+    assert response.success is False
     assert response.operation_completed is False
     assert response.action_status.value == "denied"
     assert response.error_type == "SECURITY_POLICY_BLOCK"

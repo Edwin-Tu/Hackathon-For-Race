@@ -293,6 +293,8 @@ class ToolGateway:
                 token = self._confirmation.create(
                     request_id=auth_context.request_id,
                     session_id=auth_context.session_id,
+                    requester_id=auth_context.requester_id,
+                    role=auth_context.role.value,
                     tool_call=tool_call,
                     validated_args=validated_args,
                     target_persona_id=target_persona_id,
@@ -446,6 +448,48 @@ class ToolGateway:
                 raise TimeoutError(f"Handler execution exceeded {timeout_seconds}s")
 
 
+    def get_pending_confirmation(
+        self,
+        auth_context: AuthContext,
+    ) -> tuple[str | None, str | None, str | None]:
+        """Return only token/summary for the current trusted context."""
+        pending, error = self._confirmation.get_for_context(auth_context)
+        if pending is None:
+            return None, None, error
+        return pending.token, pending.summary, None
+
+    def cancel_confirmation(
+        self,
+        confirmation_token: str,
+        auth_context: AuthContext,
+    ) -> ToolResult:
+        """Cancel one server-side pending ToolCall without invoking its handler."""
+        started_at = datetime.now(timezone.utc)
+        pending, error = self._confirmation.cancel(confirmation_token, auth_context)
+        if pending is None:
+            placeholder_call = ToolCall(
+                tool_call_id=f"cancel-denied-{uuid.uuid4()}",
+                name="unknown",
+                arguments={},
+            )
+            return self._deny(
+                placeholder_call,
+                started_at,
+                "INVALID_CONFIRMATION",
+                error,
+                auth_context,
+                None,
+            )
+
+        return self._make_result(
+            pending.tool_call,
+            ToolStatus.CANCELLED,
+            False,
+            "已取消待確認操作，未執行任何工具。",
+            started_at,
+            metadata={"target_persona_id": pending.target_persona_id},
+        )
+
     def confirm_and_execute(
         self,
         confirmation_token: str,
@@ -462,7 +506,7 @@ class ToolGateway:
 
         # Get pending confirmation from server storage
         pending, err_msg = self._confirmation.get_pending(
-            confirmation_token, auth_context.session_id
+            confirmation_token, auth_context
         )
 
         if pending is None:

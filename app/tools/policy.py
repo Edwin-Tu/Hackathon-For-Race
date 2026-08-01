@@ -9,6 +9,7 @@ Confirmation is required for:
 """
 
 import hashlib
+import json
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -22,14 +23,16 @@ from app.tools.models import AuthContext, ToolCall
 class PendingConfirmation:
     """
     A pending confirmation waiting for user approval.
-    
-    Stores complete ToolCall so confirmation doesn't need
-    to re-accept arguments from client (prevents tampering).
+
+    The complete validated ToolCall stays server-side.  The client receives
+    only an opaque token and a human-readable summary.
     """
 
     token: str
     request_id: str
     session_id: str
+    requester_id: str
+    role: str
     tool_call: ToolCall
     target_persona_id: str | None
     arguments_hash: str
@@ -40,16 +43,7 @@ class PendingConfirmation:
 
 
 class ConfirmationStore:
-    """
-    In-memory store for pending confirmations.
-    
-    Stores complete ToolCall server-side so that:
-    1. confirm_and_execute doesn't accept arguments from client
-    2. Token is single-use
-    3. Arguments cannot be tampered with after confirmation request
-    
-    TODO: Replace with Redis or database for production.
-    """
+    """In-memory pending-confirmation store with identity/session binding."""
 
     DEFAULT_TTL_SECONDS = 300  # 5 minutes
 
@@ -57,96 +51,140 @@ class ConfirmationStore:
         self._store: dict[str, PendingConfirmation] = {}
         self._ttl_seconds = ttl_seconds
 
+    @staticmethod
+    def _arguments_hash(validated_args: dict[str, Any]) -> str:
+        canonical = json.dumps(
+            validated_args,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def create(
         self,
         request_id: str,
         session_id: str,
+        requester_id: str,
+        role: str,
         tool_call: ToolCall,
         validated_args: dict[str, Any],
         target_persona_id: str | None,
         summary: str,
     ) -> str:
-        """
-        Create a confirmation token and store pending confirmation.
-        
-        Stores the complete ToolCall so it can be executed later
-        without accepting new arguments from the client.
-        """
+        """Create one opaque token and freeze the validated ToolCall."""
+        self._cleanup_expired()
+
+        # A conversation can have only one active pending action.  Replacing an
+        # older action prevents an ambiguous plain-language "確認" from
+        # approving the wrong request.
+        for token, pending in list(self._store.items()):
+            if (
+                pending.session_id == session_id
+                and pending.requester_id == requester_id
+                and not pending.consumed
+            ):
+                del self._store[token]
+
         token = secrets.token_urlsafe(32)
         now = time.time()
-
-        # Hash arguments for verification
-        args_str = str(sorted(validated_args.items()))
-        args_hash = hashlib.sha256(args_str.encode()).hexdigest()
-
-        pending = PendingConfirmation(
+        self._store[token] = PendingConfirmation(
             token=token,
             request_id=request_id,
             session_id=session_id,
+            requester_id=requester_id,
+            role=role,
             tool_call=tool_call,
             target_persona_id=target_persona_id,
-            arguments_hash=args_hash,
+            arguments_hash=self._arguments_hash(validated_args),
             created_at=now,
             expires_at=now + self._ttl_seconds,
             summary=summary,
             consumed=False,
         )
-        self._store[token] = pending
-        self._cleanup_expired()
         return token
+
+    def _validate_identity(
+        self,
+        pending: PendingConfirmation,
+        auth_context: AuthContext,
+    ) -> str:
+        if pending.session_id != auth_context.session_id:
+            return "確認代碼與目前工作階段不符"
+        if pending.requester_id != auth_context.requester_id:
+            return "確認代碼與目前使用者不符"
+        if pending.role != auth_context.role.value:
+            return "確認代碼與目前角色不符"
+        return ""
 
     def get_pending(
         self,
         token: str,
-        session_id: str,
+        auth_context: AuthContext,
     ) -> tuple[PendingConfirmation | None, str]:
-        """
-        Get pending confirmation by token.
-        
-        Returns (pending, error_message).
-        Does NOT consume the token - use consume() after successful execution.
-        """
+        """Resolve a token without consuming it."""
         self._cleanup_expired()
-
         pending = self._store.get(token)
         if pending is None:
             return None, "確認代碼無效或已過期"
-
-        # Check if already consumed (single-use)
         if pending.consumed:
             return None, "確認代碼已使用"
-
-        # Check expiration
         if time.time() > pending.expires_at:
             del self._store[token]
             return None, "確認代碼已過期，請重新操作"
 
-        # Check session matches
-        if pending.session_id != session_id:
-            return None, "確認代碼與目前工作階段不符"
-
+        identity_error = self._validate_identity(pending, auth_context)
+        if identity_error:
+            return None, identity_error
         return pending, ""
 
+    def get_for_context(
+        self,
+        auth_context: AuthContext,
+    ) -> tuple[PendingConfirmation | None, str]:
+        """Find the single pending action for a trusted session/user context."""
+        self._cleanup_expired()
+        matches = [
+            pending
+            for pending in self._store.values()
+            if not pending.consumed
+            and pending.session_id == auth_context.session_id
+            and pending.requester_id == auth_context.requester_id
+            and pending.role == auth_context.role.value
+        ]
+        if not matches:
+            return None, "目前沒有待確認操作"
+        if len(matches) > 1:
+            return None, "目前有多筆待確認操作，請使用畫面上的確認按鈕"
+        return matches[0], ""
+
     def consume(self, token: str) -> bool:
-        """
-        Mark token as consumed (single-use).
-        
-        Returns True if successfully consumed, False if not found.
-        """
+        """Remove one token so it cannot be reused."""
         pending = self._store.get(token)
         if pending is None:
             return False
         pending.consumed = True
-        # Remove from store after consumption
         del self._store[token]
         return True
 
+    def cancel(
+        self,
+        token: str,
+        auth_context: AuthContext,
+    ) -> tuple[PendingConfirmation | None, str]:
+        """Cancel and consume a pending action after binding checks."""
+        pending, error = self.get_pending(token, auth_context)
+        if pending is None:
+            return None, error
+        self.consume(token)
+        return pending, ""
+
     def _cleanup_expired(self) -> None:
-        """Remove expired confirmations."""
         now = time.time()
-        expired = [k for k, v in self._store.items() if now > v.expires_at]
-        for k in expired:
-            del self._store[k]
+        expired = [key for key, value in self._store.items() if now > value.expires_at]
+        for key in expired:
+            del self._store[key]
 
 
 class PermissionPolicy:

@@ -6,6 +6,24 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class ConfirmationDecision(str, Enum):
+    """User decision for a pending server-side tool operation."""
+
+    CONFIRM = "confirm"
+    CANCEL = "cancel"
+
+
+class ConfirmationRequest(BaseModel):
+    """POST /api/agent/confirm request body."""
+
+    session_id: str = Field(..., min_length=1, description="原始工作階段 ID")
+    confirmation_token: str = Field(..., min_length=1, description="伺服器簽發的單次確認代碼")
+    decision: ConfirmationDecision = Field(
+        ConfirmationDecision.CONFIRM,
+        description="confirm 或 cancel",
+    )
+
+
 class ChatRequest(BaseModel):
     """POST /api/agent/chat request body."""
 
@@ -40,6 +58,7 @@ class ActionStatus(str, Enum):
     COMPLETED = "completed"  # Write tool executed successfully
     QUERY_COMPLETED = "query_completed"  # Read-only query executed successfully
     DENIED = "denied"  # Tool execution was denied (auth/validation)
+    CANCELLED = "cancelled"  # User cancelled a pending operation
     FAILED = "failed"  # Tool execution failed
 
 
@@ -149,8 +168,70 @@ class ProviderResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """GET /health response body."""
+    """GET /health response body (never contains secret values)."""
 
     status: str = "ok"
     app_env: str = ""
     model_id: str = ""
+    api_auth_required: bool = False
+    repository_backend: str = ""
+    event_table: str = ""
+
+
+class TranscriptionTrace(BaseModel):
+    """Whisper metadata safe to expose to an API client."""
+
+    model: str
+    language: str | None = None
+    language_probability: float | None = None
+    duration_seconds: float | None = None
+    duration_after_vad_seconds: float | None = None
+    segment_count: int = 0
+
+
+class TranscriptionResponse(BaseModel):
+    """POST /api/voice/transcribe response."""
+
+    transcript: str
+    trace: TranscriptionTrace
+
+
+class SpeechDeliveryTrace(BaseModel):
+    """Local speech delivery result for a voice turn."""
+
+    ok: bool
+    backend: str
+    error: str | None = None
+
+
+class VoiceTurnResponse(BaseModel):
+    """POST /api/voice/turn response."""
+
+    transcript: str
+    trace: TranscriptionTrace
+    agent: ChatResponse
+    speech_delivery: SpeechDeliveryTrace | None = None
+
+
+class ReminderRunItem(BaseModel):
+    reminder_id: str
+    status: str
+    backend: str | None = None
+    error: str | None = None
+
+
+class ReminderRunResponse(BaseModel):
+    processed: int
+    results: list[ReminderRunItem] = Field(default_factory=list)
+
+
+class OutputEventResponse(BaseModel):
+    event_type: str
+    persona_id: str
+    display_text: str
+    speech_text: str
+    source_id: str | None = None
+    session_id: str | None = None
+    event_id: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str

@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Secure Care Agent on AWS App Runner with private RDS access and Bedrock Runtime VPC endpoint.
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: smart-care-agent
+  EcrImageUri:
+    Type: String
+    Description: Full ECR image URI including tag.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two private subnets in the RDS VPC are recommended.
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  DatabaseUrlSecretArn:
+    Type: String
+    Description: Secrets Manager ARN whose secret value is the complete mysql:// DATABASE_URL.
+  ApiBearerTokenSecretArn:
+    Type: String
+    Description: Secrets Manager ARN whose secret value is the demo API bearer token.
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+  DemoUserId:
+    Type: String
+  DemoPersonaId:
+    Type: String
+  WhisperModelSize:
+    Type: String
+    Default: small
+    AllowedValues: [tiny, base, small, medium]
+
+Resources:
+  AppRunnerConnectorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App Runner outbound connector for Smart Care Agent
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-apprunner-connector'
+
+  BedrockEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Bedrock Runtime HTTPS from App Runner connector
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !GetAtt AppRunnerConnectorSecurityGroup.GroupId
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-bedrock-endpoint'
+
+  RdsIngressFromAppRunner:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt AppRunnerConnectorSecurityGroup.GroupId
+      Description: MySQL from Smart Care App Runner only
+
+  BedrockRuntimeEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock-runtime'
+      PrivateDnsEnabled: true
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds:
+        - !GetAtt BedrockEndpointSecurityGroup.GroupId
+
+  VpcConnector:
+    Type: AWS::AppRunner::VpcConnector
+    Properties:
+      VpcConnectorName: !Sub '${ServiceName}-connector'
+      Subnets: !Ref PrivateSubnetIds
+      SecurityGroups:
+        - !GetAtt AppRunnerConnectorSecurityGroup.GroupId
+
+  EcrAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SmartCareRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: InvokeConfiguredClaudeModels
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+              - Sid: ReadRuntimeSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DatabaseUrlSecretArn
+                  - !Ref ApiBearerTokenSecretArn
+
+  SingleInstanceScaling:
+    Type: AWS::AppRunner::AutoScalingConfiguration
+    Properties:
+      AutoScalingConfigurationName: !Sub '${ServiceName}-single-instance'
+      MaxConcurrency: 40
+      MinSize: 1
+      MaxSize: 1
+
+  Service:
+    Type: AWS::AppRunner::Service
+    DependsOn:
+      - RdsIngressFromAppRunner
+      - BedrockRuntimeEndpoint
+    Properties:
+      ServiceName: !Ref ServiceName
+      AutoScalingConfigurationArn: !GetAtt SingleInstanceScaling.AutoScalingConfigurationArn
+      SourceConfiguration:
+        AutoDeploymentsEnabled: false
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt EcrAccessRole.Arn
+        ImageRepository:
+          ImageIdentifier: !Ref EcrImageUri
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: '8000'
+            RuntimeEnvironmentSecrets:
+              - Name: DATABASE_URL
+                Value: !Ref DatabaseUrlSecretArn
+              - Name: API_BEARER_TOKEN
+                Value: !Ref ApiBearerTokenSecretArn
+            RuntimeEnvironmentVariables:
+              - Name: APP_ENV
+                Value: cloud
+              - Name: AWS_REGION
+                Value: !Ref AWS::Region
+              - Name: BEDROCK_MODEL_ID
+                Value: !Ref BedrockModelId
+              - Name: API_AUTH_ENABLED
+                Value: 'true'
+              - Name: CARE_REPOSITORY_BACKEND
+                Value: mysql
+              - Name: CARE_EVENT_TABLE
+                Value: auto
+              - Name: DATABASE_PING_ON_STARTUP
+                Value: 'true'
+              - Name: DATABASE_SSL_MODE
+                Value: verify_identity
+              - Name: DATABASE_SSL_CA
+                Value: /opt/aws/rds-global-bundle.pem
+              - Name: DEMO_USER_ID
+                Value: !Ref DemoUserId
+              - Name: DEMO_PERSONA_ID
+                Value: !Ref DemoPersonaId
+              - Name: INPUT_GUARD_ENABLED
+                Value: 'true'
+              - Name: INPUT_GUARD_FAIL_CLOSED
+                Value: 'true'
+              - Name: WHISPER_ENABLED
+                Value: 'true'
+              - Name: WHISPER_MODEL_SIZE
+                Value: !Ref WhisperModelSize
+              - Name: WHISPER_DEVICE
+                Value: cpu
+              - Name: WHISPER_COMPUTE_TYPE
+                Value: int8
+              - Name: WHISPER_DOWNLOAD_ROOT
+                Value: /opt/models
+              - Name: REMINDER_SCHEDULER_ENABLED
+                Value: 'true'
+              - Name: LOCAL_ALARM_ENABLED
+                Value: 'false'
+              - Name: LOCAL_TTS_ENABLED
+                Value: 'false'
+              - Name: VOICE_TURN_LOCAL_TTS_ENABLED
+                Value: 'false'
+      InstanceConfiguration:
+        Cpu: '2 vCPU'
+        Memory: '4 GB'
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      NetworkConfiguration:
+        EgressConfiguration:
+          EgressType: VPC
+          VpcConnectorArn: !GetAtt VpcConnector.VpcConnectorArn
+        IngressConfiguration:
+          IsPubliclyAccessible: true
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /health
+        Interval: 10
+        Timeout: 5
+        HealthyThreshold: 1
+        UnhealthyThreshold: 5
+
+Outputs:
+  ServiceArn:
+    Value: !GetAtt Service.ServiceArn
+  ServiceUrl:
+    Value: !Sub 'https://${Service.ServiceUrl}'
+  AppRunnerConnectorSecurityGroupId:
+    Value: !GetAtt AppRunnerConnectorSecurityGroup.GroupId
