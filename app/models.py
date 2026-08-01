@@ -64,6 +64,42 @@ class ToolEvent(BaseModel):
     idempotency_replayed: bool = Field(False, description="Whether replayed via idempotency")
 
 
+class InputGuardEvidence(BaseModel):
+    """Minimized Input Guard evidence safe for API clients and audit UI."""
+
+    enabled: bool = True
+    allowed: bool = False
+    action: str = "BLOCK"
+    overall_risk_level: str = "unknown"
+    overall_risk_score: int = 0
+    attack_risk_score: int = 0
+    access_risk_score: int = 0
+    primary_category: str = "none"
+    is_attack: bool = False
+    is_suspicious: bool = False
+    strict_runtime_monitoring: bool = False
+    reason_codes: list[str] = Field(default_factory=list)
+
+
+class InputGuardCheckRequest(BaseModel):
+    """Development endpoint request for inspecting text without invoking Bedrock."""
+
+    message: str = Field(..., min_length=1, description="Text to inspect")
+    session_id: str | None = Field(None, description="Optional session ID")
+
+
+class InputGuardCheckResponse(BaseModel):
+    """Safe direct Input Guard inspection response."""
+
+    request_id: str
+    session_id: str
+    allowed: bool
+    action: str
+    sanitized_text: str | None = None
+    safe_response: str | None = None
+    input_guard: InputGuardEvidence
+
+
 class ChatResponse(BaseModel):
     """POST /api/agent/chat response body."""
 
@@ -90,6 +126,10 @@ class ChatResponse(BaseModel):
     tool_events: list[ToolEvent] = Field(
         default_factory=list,
         description="List of tool execution events (no sensitive data)",
+    )
+    input_guard: InputGuardEvidence | None = Field(
+        None,
+        description="Minimized pre-LLM Input Guard decision evidence",
     )
 
 

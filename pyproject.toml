@@ -1,7 +1,7 @@
 [project]
 name = "hackathon-for-race"
-version = "0.2.0"
-description = "Secure eldercare Agent with Skills, Tool Gateway, and MySQL persistence"
+version = "0.3.0"
+description = "Secure eldercare Agent with Input Guard, Skills, Tool Gateway, and MySQL persistence"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

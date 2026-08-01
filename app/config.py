@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 
+    # Deterministic pre-LLM Input Guard.
+    INPUT_GUARD_ENABLED: bool = True
+    INPUT_GUARD_FAIL_CLOSED: bool = True
+
     # Persistence: memory | mysql | auto
     CARE_REPOSITORY_BACKEND: str = "auto"
     DATABASE_URL: str | None = None

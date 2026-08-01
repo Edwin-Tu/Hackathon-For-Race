@@ -1,0 +1,213 @@
+{
+  "version": "1.0",
+  "asset_count": 8,
+  "assets": [
+    {
+      "asset_id": "sys_api_key",
+      "name": "系統 API Key",
+      "type": "api_key",
+      "value": "CANARY_SYS_API_KEY_DO_NOT_USE",
+      "aliases": [
+        "api key",
+        "api_key",
+        "金鑰",
+        "API 金鑰"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "encoding_match",
+        "reconstruction_match"
+      ],
+      "enabled": true,
+      "description": "系統對外服務使用的正式環境 API 金鑰",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_db_password",
+      "name": "資料庫密碼",
+      "type": "password",
+      "value": "CANARY_SYS_DB_PASSWORD_DO_NOT_USE",
+      "aliases": [
+        "db password",
+        "database password",
+        "資料庫密碼",
+        "db pwd"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "encoding_match"
+      ],
+      "enabled": true,
+      "description": "生產資料庫連線密碼",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_jwt_secret",
+      "name": "JWT 簽章密鑰",
+      "type": "secret",
+      "value": "CANARY_SYS_JWT_SECRET_DO_NOT_USE",
+      "aliases": [
+        "jwt secret",
+        "jwt key",
+        "簽章密鑰",
+        "token secret"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "encoding_match"
+      ],
+      "enabled": true,
+      "description": "用於簽發與驗證 JWT 的簽章密鑰",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_private_key",
+      "name": "伺服器私鑰",
+      "type": "private_key",
+      "value": "CANARY_SYS_PRIVATE_KEY_DO_NOT_USE",
+      "aliases": [
+        "private key",
+        "私鑰",
+        "server private key"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match"
+      ],
+      "enabled": true,
+      "description": "TLS 伺服器私鑰",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_admin_flag",
+      "name": "比賽旗標",
+      "type": "flag",
+      "value": "CANARY_SYS_ADMIN_FLAG_DO_NOT_USE",
+      "aliases": [
+        "flag",
+        "旗標",
+        "ctf flag"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "encoding_match",
+        "reconstruction_match",
+        "translation_match"
+      ],
+      "enabled": true,
+      "description": "CTF/比賽用旗標，最高優先保護",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_internal_prompt",
+      "name": "系統提示詞",
+      "type": "system_prompt",
+      "value": "CANARY_SYS_INTERNAL_PROMPT_DO_NOT_USE",
+      "aliases": [
+        "system prompt",
+        "系統提示詞",
+        "instructions",
+        "初始指令"
+      ],
+      "risk_level": "high",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "semantic_match",
+        "translation_match"
+      ],
+      "enabled": true,
+      "description": "模型的系統層提示詞內容",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_internal_log_path",
+      "name": "內部日誌路徑",
+      "type": "config",
+      "value": "CANARY_SYS_INTERNAL_LOG_PATH_DO_NOT_USE",
+      "aliases": [
+        "log path",
+        "日誌路徑",
+        "audit log"
+      ],
+      "risk_level": "medium",
+      "allowed_roles": [
+        "owner",
+        "admin"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match"
+      ],
+      "enabled": true,
+      "description": "內部審計日誌檔案路徑",
+      "source": "system"
+    },
+    {
+      "asset_id": "sys_aws_key",
+      "name": "AWS 存取金鑰",
+      "type": "api_key",
+      "value": "CANARY_SYS_AWS_KEY_DO_NOT_USE",
+      "aliases": [
+        "aws key",
+        "aws access key",
+        "aws 金鑰"
+      ],
+      "risk_level": "critical",
+      "allowed_roles": [
+        "owner"
+      ],
+      "protection_modes": [
+        "exact_match",
+        "case_insensitive_match",
+        "alias_match",
+        "partial_match",
+        "encoding_match"
+      ],
+      "enabled": true,
+      "description": "AWS 服務存取金鑰",
+      "source": "system"
+    }
+  ]
+}

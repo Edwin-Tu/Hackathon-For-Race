@@ -15,6 +15,7 @@ from app.models import (
     UsageInfo,
 )
 from app.providers.base import BaseLLMProvider
+from app.security import AgentInputGuard
 from app.services.intent_router import IntentDecision, RequestedAction, classify_intent
 from app.skills import (
     SkillContext,
@@ -80,10 +81,15 @@ class AgentService:
         provider: BaseLLMProvider,
         gateway: ToolGateway | None = None,
         skill_registry: SkillRegistry | None = None,
+        input_guard: AgentInputGuard | None = None,
     ) -> None:
         self._provider = provider
         self._gateway = gateway or ToolGateway()
         self._skill_registry = skill_registry or create_default_skill_registry()
+        self._input_guard = input_guard or AgentInputGuard(
+            enabled=settings.INPUT_GUARD_ENABLED,
+            fail_closed=settings.INPUT_GUARD_FAIL_CLOSED,
+        )
 
     def _create_demo_auth_context(
         self,
@@ -230,11 +236,45 @@ class AgentService:
                 session_id,
             )
 
+        guard_outcome = self._input_guard.inspect(
+            text=request.message,
+            auth_context=auth_context,
+        )
+        logger.info(
+            "Input Guard request_id=%s action=%s allowed=%s risk=%s category=%s",
+            request_id,
+            guard_outcome.evidence.action,
+            guard_outcome.allowed,
+            guard_outcome.evidence.overall_risk_score,
+            guard_outcome.evidence.primary_category,
+        )
+        if not guard_outcome.allowed:
+            return ChatResponse(
+                success=True,
+                reply=(
+                    "我無法協助處理這項請求。"
+                    + (
+                        guard_outcome.safe_response
+                        or "這項請求未通過安全檢查，因此尚未處理。"
+                    )
+                ),
+                model="",
+                session_id=session_id,
+                usage=UsageInfo(),
+                error_type="SECURITY_POLICY_BLOCK",
+                error_message="請求在呼叫模型前被 Input Guard 阻擋",
+                operation_completed=False,
+                action_status=ActionStatus.DENIED,
+                tool_events=[],
+                input_guard=guard_outcome.evidence,
+            )
+
+        guarded_message = guard_outcome.sanitized_text or request.message
         self._gateway.reset_turn_count(request_id)
-        intent = classify_intent(request.message)
+        intent = classify_intent(guarded_message)
         skills = self._skill_registry.route(
             SkillContext(
-                message=request.message,
+                message=guarded_message,
                 action=intent.action.value,
                 user_role=auth_context.role.value,
             )
@@ -259,6 +299,7 @@ class AgentService:
                 operation_completed=False,
                 action_status=ActionStatus.DENIED,
                 tool_events=[],
+                input_guard=guard_outcome.evidence,
             )
 
         initial_tool_config, follow_up_tool_config = self._build_tool_configs(
@@ -266,7 +307,7 @@ class AgentService:
         )
 
         messages: list[dict[str, Any]] = [
-            {"role": "user", "content": request.message}
+            {"role": "user", "content": guarded_message}
         ]
         total_usage = UsageInfo()
         tools_executed = 0
@@ -297,6 +338,7 @@ class AgentService:
                     operation_completed=False,
                     action_status=ActionStatus.FAILED,
                     tool_events=tool_events,
+                    input_guard=guard_outcome.evidence,
                 )
 
             total_usage = UsageInfo(
@@ -323,6 +365,7 @@ class AgentService:
                     operation_completed=operation_completed,
                     action_status=action_status,
                     tool_events=tool_events,
+                    input_guard=guard_outcome.evidence,
                 )
 
             if result.stop_reason == "tool_use":
@@ -385,6 +428,7 @@ class AgentService:
                             operation_completed=False,
                             action_status=ActionStatus.FAILED,
                             tool_events=tool_events,
+                            input_guard=guard_outcome.evidence,
                         )
 
                     tool_call = ToolCall(
@@ -408,6 +452,7 @@ class AgentService:
                             operation_completed=False,
                             action_status=ActionStatus.CONFIRMATION_REQUIRED,
                             tool_events=tool_events,
+                            input_guard=guard_outcome.evidence,
                         )
 
                     if gateway_result.success:
@@ -439,6 +484,7 @@ class AgentService:
             operation_completed=operation_completed,
             action_status=action_status,
             tool_events=tool_events,
+            input_guard=guard_outcome.evidence,
         )
 
     async def _handle_confirmation(

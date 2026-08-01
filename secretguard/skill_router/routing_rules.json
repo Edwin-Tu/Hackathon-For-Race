@@ -1,0 +1,128 @@
+{
+  "direct_request": {
+    "primary_skill": "direct_request_skill",
+    "secondary_skills": [],
+    "priority": 10,
+    "min_policy_action": "BLOCK"
+  },
+  "role_play": {
+    "primary_skill": "role_play_skill",
+    "secondary_skills": ["refusal_suppression_skill"],
+    "priority": 20,
+    "min_policy_action": "BLOCK"
+  },
+  "instruction_override": {
+    "primary_skill": "instruction_override_skill",
+    "secondary_skills": [],
+    "priority": 15,
+    "min_policy_action": "BLOCK"
+  },
+  "system_prompt_extraction": {
+    "primary_skill": "system_prompt_extraction_skill",
+    "secondary_skills": [],
+    "priority": 5,
+    "min_policy_action": "BLOCK"
+  },
+  "encoding_bypass": {
+    "primary_skill": "encoding_bypass_skill",
+    "secondary_skills": [],
+    "priority": 40,
+    "min_policy_action": "RESTRICT"
+  },
+  "partial_disclosure": {
+    "primary_skill": "partial_disclosure_skill",
+    "secondary_skills": [],
+    "priority": 25,
+    "min_policy_action": "BLOCK"
+  },
+  "translation_bypass": {
+    "primary_skill": "translation_bypass_skill",
+    "secondary_skills": [],
+    "priority": 45,
+    "min_policy_action": "RESTRICT"
+  },
+  "structured_output": {
+    "primary_skill": "structured_output_skill",
+    "secondary_skills": [],
+    "priority": 60,
+    "min_policy_action": "WARN"
+  },
+  "log_access": {
+    "primary_skill": "log_access_skill",
+    "secondary_skills": [],
+    "priority": 30,
+    "min_policy_action": "BLOCK"
+  },
+  "multi_turn_probe": {
+    "primary_skill": "multi_turn_probe_skill",
+    "secondary_skills": ["data_reconstruction_skill"],
+    "priority": 12,
+    "min_policy_action": "ESCALATE"
+  },
+  "policy_confusion": {
+    "primary_skill": "policy_confusion_skill",
+    "secondary_skills": [],
+    "priority": 50,
+    "min_policy_action": "WARN"
+  },
+  "indirect_prompt_injection": {
+    "primary_skill": "indirect_prompt_injection_skill",
+    "secondary_skills": ["instruction_override_skill"],
+    "priority": 6,
+    "min_policy_action": "BLOCK"
+  },
+  "format_smuggling": {
+    "primary_skill": "format_smuggling_skill",
+    "secondary_skills": [],
+    "priority": 55,
+    "min_policy_action": "WARN"
+  },
+  "output_constraint_bypass": {
+    "primary_skill": "output_constraint_bypass_skill",
+    "secondary_skills": ["refusal_suppression_skill"],
+    "priority": 22,
+    "min_policy_action": "BLOCK"
+  },
+  "reasoning_trap": {
+    "primary_skill": "reasoning_trap_skill",
+    "secondary_skills": [],
+    "priority": 58,
+    "min_policy_action": "WARN"
+  },
+  "refusal_suppression": {
+    "primary_skill": "refusal_suppression_skill",
+    "secondary_skills": [],
+    "priority": 18,
+    "min_policy_action": "BLOCK"
+  },
+  "persona_override": {
+    "primary_skill": "persona_override_skill",
+    "secondary_skills": ["role_play_skill"],
+    "priority": 20,
+    "min_policy_action": "BLOCK"
+  },
+  "data_reconstruction": {
+    "primary_skill": "data_reconstruction_skill",
+    "secondary_skills": ["multi_turn_probe_skill"],
+    "priority": 8,
+    "min_policy_action": "BLOCK"
+  },
+  "cross_language_injection": {
+    "primary_skill": "cross_language_injection_skill",
+    "secondary_skills": ["instruction_override_skill"],
+    "priority": 16,
+    "min_policy_action": "BLOCK"
+  },
+  "homoglyph_obfuscation": {
+    "primary_skill": "homoglyph_obfuscation_skill",
+    "secondary_skills": [],
+    "priority": 35,
+    "min_policy_action": "BLOCK"
+  },
+  "benign": {
+    "primary_skill": "",
+    "secondary_skills": [],
+    "priority": 100,
+    "min_policy_action": "ALLOW"
+  }
+}
