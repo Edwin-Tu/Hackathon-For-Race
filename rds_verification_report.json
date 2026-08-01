@@ -1,0 +1,302 @@
+{
+  "connection": {
+    "host": "smart-care-agent-db.c1e6cmcsyqsm.us-west-2.rds.amazonaws.com",
+    "port": 3306,
+    "database": "smart_care_agent",
+    "status": "connected"
+  },
+  "database_info": {
+    "version": "8.0.46",
+    "charset": "utf8mb4",
+    "collation": "utf8mb4_0900_ai_ci"
+  },
+  "tables": {
+    "_prisma_migrations": {
+      "row_count": 1,
+      "column_count": 8,
+      "columns": [
+        "id",
+        "checksum",
+        "finished_at",
+        "migration_name",
+        "logs",
+        "rolled_back_at",
+        "started_at",
+        "applied_steps_count"
+      ]
+    },
+    "app_users": {
+      "row_count": 0,
+      "column_count": 10,
+      "columns": [
+        "user_id",
+        "username",
+        "password_hash",
+        "display_name",
+        "role",
+        "persona_id",
+        "is_active",
+        "last_login_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "audit_logs": {
+      "row_count": 0,
+      "column_count": 13,
+      "columns": [
+        "audit_id",
+        "request_id",
+        "actor_type",
+        "action_type",
+        "resource_type",
+        "resource_id",
+        "tool_name",
+        "risk_level",
+        "result",
+        "reason",
+        "metadata",
+        "persona_id",
+        "created_at"
+      ]
+    },
+    "auth_sessions": {
+      "row_count": 0,
+      "column_count": 6,
+      "columns": [
+        "session_token_hash",
+        "user_id",
+        "expires_at",
+        "revoked_at",
+        "last_seen_at",
+        "created_at"
+      ]
+    },
+    "care_alerts": {
+      "row_count": 0,
+      "column_count": 11,
+      "columns": [
+        "alert_id",
+        "persona_id",
+        "alert_type",
+        "severity",
+        "source_text",
+        "alert_status",
+        "assigned_to",
+        "idempotency_key",
+        "resolution_note",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "care_events": {
+      "row_count": 0,
+      "column_count": 20,
+      "columns": [
+        "event_id",
+        "persona_id",
+        "session_id",
+        "interaction_id",
+        "tool_execution_id",
+        "event_type",
+        "content",
+        "event_time",
+        "event_end_time",
+        "confidence",
+        "source_text",
+        "memory_status",
+        "risk_level",
+        "created_by_type",
+        "created_by_id",
+        "committed_at",
+        "archived_at",
+        "deleted_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "confirmation_requests": {
+      "row_count": 0,
+      "column_count": 10,
+      "columns": [
+        "confirmation_id",
+        "session_id",
+        "target_type",
+        "target_id",
+        "confirmation_question",
+        "confirmation_status",
+        "expires_at",
+        "response_text",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "daily_summaries": {
+      "row_count": 0,
+      "column_count": 9,
+      "columns": [
+        "summary_id",
+        "persona_id",
+        "summary_date",
+        "summary_text",
+        "summary_version",
+        "review_status",
+        "generation_model",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "daily_summary_events": {
+      "row_count": 0,
+      "column_count": 6,
+      "columns": [
+        "summary_id",
+        "event_id",
+        "source_order",
+        "included_reason",
+        "interaction_id",
+        "created_at"
+      ]
+    },
+    "event_revisions": {
+      "row_count": 0,
+      "column_count": 8,
+      "columns": [
+        "revision_id",
+        "event_id",
+        "revision_number",
+        "old_data",
+        "new_data",
+        "change_reason",
+        "changed_by",
+        "created_at"
+      ]
+    },
+    "interactions": {
+      "row_count": 0,
+      "column_count": 16,
+      "columns": [
+        "interaction_id",
+        "request_id",
+        "session_id",
+        "persona_id",
+        "input_type",
+        "transcript",
+        "normalized_text",
+        "asr_language",
+        "asr_confidence",
+        "asr_metadata",
+        "agent_response",
+        "interaction_status",
+        "error_code",
+        "error_message",
+        "started_at",
+        "completed_at"
+      ]
+    },
+    "persona_preferences": {
+      "row_count": 0,
+      "column_count": 10,
+      "columns": [
+        "preference_id",
+        "persona_id",
+        "preference_key",
+        "preference_value",
+        "version",
+        "is_active",
+        "source_type",
+        "source_interaction_id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "personas": {
+      "row_count": 0,
+      "column_count": 11,
+      "columns": [
+        "persona_id",
+        "display_name",
+        "memory_namespace",
+        "preferred_language",
+        "response_style",
+        "response_style_config",
+        "interests",
+        "status",
+        "created_at",
+        "updated_at",
+        "deleted_at"
+      ]
+    },
+    "reminders": {
+      "row_count": 0,
+      "column_count": 14,
+      "columns": [
+        "reminder_id",
+        "persona_id",
+        "interaction_id",
+        "title",
+        "description",
+        "scheduled_at",
+        "importance",
+        "reminder_status",
+        "confirmation_status",
+        "idempotency_key",
+        "triggered_at",
+        "completed_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "sessions": {
+      "row_count": 0,
+      "column_count": 10,
+      "columns": [
+        "session_id",
+        "persona_id",
+        "session_status",
+        "client_type",
+        "client_identifier",
+        "started_at",
+        "last_active_at",
+        "expires_at",
+        "ended_at",
+        "end_reason"
+      ]
+    },
+    "tool_executions": {
+      "row_count": 0,
+      "column_count": 17,
+      "columns": [
+        "tool_execution_id",
+        "request_id",
+        "session_id",
+        "persona_id",
+        "interaction_id",
+        "tool_name",
+        "tool_arguments",
+        "tool_status",
+        "risk_level",
+        "idempotency_key",
+        "record_type",
+        "record_id",
+        "result_payload",
+        "error_code",
+        "error_message",
+        "started_at",
+        "finished_at"
+      ]
+    },
+    "user_persona_access": {
+      "row_count": 0,
+      "column_count": 5,
+      "columns": [
+        "access_id",
+        "user_id",
+        "persona_id",
+        "access_level",
+        "created_at"
+      ]
+    }
+  },
+  "tested_at": "2026-08-01T07:03:20.001395"
+}

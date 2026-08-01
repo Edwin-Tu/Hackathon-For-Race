@@ -1,0 +1,30 @@
+{
+  "region": "us-west-2",
+  "tables": {
+    "smart_care_residents": {
+      "table_name": "smart_care_residents",
+      "status": "ACTIVE",
+      "arn": "arn:aws:dynamodb:us-west-2:564282910101:table/smart_care_residents",
+      "region": "us-west-2"
+    },
+    "smart_care_events": {
+      "table_name": "smart_care_events",
+      "status": "ACTIVE",
+      "arn": "arn:aws:dynamodb:us-west-2:564282910101:table/smart_care_events",
+      "region": "us-west-2"
+    },
+    "smart_care_users": {
+      "table_name": "smart_care_users",
+      "status": "ACTIVE",
+      "arn": "arn:aws:dynamodb:us-west-2:564282910101:table/smart_care_users",
+      "region": "us-west-2"
+    },
+    "smart_care_audit_log": {
+      "table_name": "smart_care_audit_log",
+      "status": "ACTIVE",
+      "arn": "arn:aws:dynamodb:us-west-2:564282910101:table/smart_care_audit_log",
+      "region": "us-west-2"
+    }
+  },
+  "access_pattern": "Use boto3.resource(\"dynamodb\", region_name=\"us-west-2\")"
+}

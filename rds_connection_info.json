@@ -1,0 +1,14 @@
+{
+  "instance_id": "smart-care-agent-db",
+  "endpoint": "smart-care-agent-db.c1e6cmcsyqsm.us-west-2.rds.amazonaws.com",
+  "port": 3306,
+  "database": "smart_care_agent",
+  "username": "smart_care_app",
+  "password": "Hackathon2026SecurePass!",
+  "connection_string": "mysql://smart_care_app:Hackathon2026SecurePass!@smart-care-agent-db.c1e6cmcsyqsm.us-west-2.rds.amazonaws.com:3306/smart_care_agent",
+  "region": "us-west-2",
+  "engine": "mysql",
+  "engine_version": "8.0.46",
+  "status": "available",
+  "deployed_at": "2026-08-01T07:01:41.114554"
+}
