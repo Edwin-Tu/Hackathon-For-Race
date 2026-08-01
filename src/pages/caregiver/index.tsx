@@ -284,7 +284,7 @@ export default function ResidentList() {
 
       {/* 搜尋與篩選 */}
       <Fade in timeout={500}>
-        <Paper sx={{ p: 2.5, mb: 3 }}>
+        <Paper sx={{ p: { xs: 2, sm: 2.5 }, mb: { xs: 2, sm: 3 } }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               size="small"
@@ -423,7 +423,7 @@ export default function ResidentList() {
                     </Box>
                   )}
 
-                  <CardContent sx={{ flex: 1, pb: 1 }}>
+                  <CardContent sx={{ flex: 1, pb: 1, p: { xs: 2, sm: 2 } }}>
                     {/* 頭像與基本資訊 */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
                       <Badge
@@ -458,7 +458,7 @@ export default function ResidentList() {
                         </Avatar>
                       </Badge>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="h6" fontWeight={600} noWrap>
+                        <Typography variant="h6" noWrap sx={{ fontWeight: 600 }}>
                           {resident.name}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
@@ -536,7 +536,7 @@ export default function ResidentList() {
                     >
                       <Tooltip title="今日事件" arrow>
                         <Box sx={{ textAlign: 'center', cursor: 'default' }}>
-                          <Typography variant="h5" fontWeight={600}>
+                          <Typography variant="h5" sx={{ fontWeight: 600 }}>
                             {resident.todayEvents}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
@@ -548,8 +548,8 @@ export default function ResidentList() {
                         <Box sx={{ textAlign: 'center', cursor: 'default' }}>
                           <Typography 
                             variant="h5" 
-                            fontWeight={600}
                             color={resident.pendingReminders > 0 ? 'warning.main' : 'inherit'}
+                            sx={{ fontWeight: 600 }}
                           >
                             {resident.pendingReminders}
                           </Typography>
