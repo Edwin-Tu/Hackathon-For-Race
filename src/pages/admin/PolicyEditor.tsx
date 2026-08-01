@@ -31,6 +31,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Autocomplete,
 } from '@mui/material';
 import PolicyIcon from '@mui/icons-material/Policy';
 import EditIcon from '@mui/icons-material/Edit';
@@ -64,6 +65,8 @@ interface PolicyRule {
   action: PolicyAction;
   requiresAuth: boolean;
   notifyAdmin: boolean;
+  affectedPermissions: string[];
+  affectedRoles: string[];
 }
 
 // 風險閾值設定
@@ -95,6 +98,32 @@ const policyActionConfig: Record<PolicyAction, { label: string; color: 'success'
   ESCALATE: { label: '升級', color: 'error', description: '升級人工處理' },
 };
 
+// 權限選項（簡化版，供政策編輯器選擇）
+const permissionOptions = [
+  { key: '*', label: '全部權限' },
+  { key: 'resident:*', label: '住民資料（全部）' },
+  { key: 'event:*', label: '生活事件（全部）' },
+  { key: 'event:write', label: '建立生活事件' },
+  { key: 'reminder:*', label: '提醒管理（全部）' },
+  { key: 'reminder:write', label: '建立提醒' },
+  { key: 'memory:*', label: '記憶管理（全部）' },
+  { key: 'memory:read', label: '查看記憶' },
+  { key: 'memory:correct', label: '修正記憶' },
+  { key: 'privacy:cross_resident', label: '跨住民存取' },
+  { key: 'privacy:*', label: '住民隔離（全部）' },
+  { key: 'security:assets', label: '管理資產' },
+  { key: 'security:*', label: '安全管理（全部）' },
+  { key: 'admin:*', label: '系統管理（全部）' },
+];
+
+// 角色選項
+const roleOptions = [
+  { key: 'ADMIN', label: '系統管理者' },
+  { key: 'CAREGIVER', label: '照護人員' },
+  { key: 'FAMILY', label: '家屬' },
+  { key: 'RESIDENT', label: '住民' },
+];
+
 // 模擬政策規則
 const mockRules: PolicyRule[] = [
   {
@@ -107,6 +136,8 @@ const mockRules: PolicyRule[] = [
     action: 'BLOCK',
     requiresAuth: false,
     notifyAdmin: true,
+    affectedPermissions: ['*'],
+    affectedRoles: ['ADMIN', 'CAREGIVER', 'FAMILY', 'RESIDENT'],
   },
   {
     id: '2',
@@ -118,6 +149,8 @@ const mockRules: PolicyRule[] = [
     action: 'BLOCK',
     requiresAuth: false,
     notifyAdmin: true,
+    affectedPermissions: ['privacy:cross_resident'],
+    affectedRoles: ['CAREGIVER', 'FAMILY', 'RESIDENT'],
   },
   {
     id: '3',
@@ -129,6 +162,8 @@ const mockRules: PolicyRule[] = [
     action: 'BLOCK',
     requiresAuth: false,
     notifyAdmin: true,
+    affectedPermissions: ['security:assets', 'memory:read'],
+    affectedRoles: ['ADMIN', 'CAREGIVER', 'FAMILY', 'RESIDENT'],
   },
   {
     id: '4',
@@ -140,6 +175,8 @@ const mockRules: PolicyRule[] = [
     action: 'BLOCK',
     requiresAuth: false,
     notifyAdmin: false,
+    affectedPermissions: ['*'],
+    affectedRoles: ['ADMIN', 'CAREGIVER', 'FAMILY', 'RESIDENT'],
   },
   {
     id: '5',
@@ -151,6 +188,8 @@ const mockRules: PolicyRule[] = [
     action: 'AUTHORIZE',
     requiresAuth: true,
     notifyAdmin: true,
+    affectedPermissions: ['admin:*', 'privacy:*'],
+    affectedRoles: ['CAREGIVER', 'FAMILY', 'RESIDENT'],
   },
   {
     id: '6',
@@ -162,6 +201,8 @@ const mockRules: PolicyRule[] = [
     action: 'WARN',
     requiresAuth: false,
     notifyAdmin: false,
+    affectedPermissions: ['event:write', 'reminder:write', 'memory:correct'],
+    affectedRoles: ['CAREGIVER'],
   },
 ];
 
@@ -204,6 +245,8 @@ export default function PolicyEditor() {
       action: 'BLOCK',
       requiresAuth: false,
       notifyAdmin: false,
+      affectedPermissions: [],
+      affectedRoles: [],
     });
     setEditDialogOpen(true);
   };
@@ -233,6 +276,8 @@ export default function PolicyEditor() {
         action: editRule.action || 'BLOCK',
         requiresAuth: editRule.requiresAuth ?? false,
         notifyAdmin: editRule.notifyAdmin ?? false,
+        affectedPermissions: editRule.affectedPermissions || [],
+        affectedRoles: editRule.affectedRoles || [],
       };
       setRules((prev) => [...prev, newRule]);
     }
@@ -315,6 +360,7 @@ export default function PolicyEditor() {
                   <TableCell>攻擊類別</TableCell>
                   <TableCell>風險閾值</TableCell>
                   <TableCell>動作</TableCell>
+                  <TableCell>受影響範圍</TableCell>
                   <TableCell>選項</TableCell>
                   <TableCell>操作</TableCell>
                 </TableRow>
@@ -351,6 +397,27 @@ export default function PolicyEditor() {
                         label={policyActionConfig[rule.action].label}
                         color={policyActionConfig[rule.action].color}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                          {rule.affectedPermissions.slice(0, 2).map((perm) => (
+                            <Chip
+                              key={perm}
+                              size="small"
+                              label={permissionOptions.find((p) => p.key === perm)?.label || perm}
+                              variant="outlined"
+                              color="primary"
+                            />
+                          ))}
+                          {rule.affectedPermissions.length > 2 && (
+                            <Chip size="small" label={`+${rule.affectedPermissions.length - 2}`} variant="outlined" />
+                          )}
+                        </Box>
+                        <Typography variant="caption" color="text.secondary">
+                          {rule.affectedRoles.map((r) => roleOptions.find((ro) => ro.key === r)?.label || r).join('、')}
+                        </Typography>
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -502,6 +569,56 @@ export default function PolicyEditor() {
               min={0}
               max={100}
               marks={[{ value: 30, label: '低' }, { value: 50, label: '中' }, { value: 70, label: '高' }, { value: 90, label: '嚴重' }]}
+            />
+
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>受影響權限</Typography>
+            <Autocomplete
+              multiple
+              options={permissionOptions}
+              getOptionLabel={(option) => option.label}
+              value={permissionOptions.filter((p) => editRule.affectedPermissions?.includes(p.key))}
+              onChange={(_, newValue) =>
+                setEditRule({ ...editRule, affectedPermissions: newValue.map((v) => v.key) })
+              }
+              renderInput={(params) => (
+                <TextField {...params} placeholder="選擇權限" size="small" />
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    variant="outlined"
+                    label={option.label}
+                    size="small"
+                    {...getTagProps({ index })}
+                    key={option.key}
+                  />
+                ))
+              }
+            />
+
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>受影響角色</Typography>
+            <Autocomplete
+              multiple
+              options={roleOptions}
+              getOptionLabel={(option) => option.label}
+              value={roleOptions.filter((r) => editRule.affectedRoles?.includes(r.key))}
+              onChange={(_, newValue) =>
+                setEditRule({ ...editRule, affectedRoles: newValue.map((v) => v.key) })
+              }
+              renderInput={(params) => (
+                <TextField {...params} placeholder="選擇角色" size="small" />
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    variant="outlined"
+                    label={option.label}
+                    size="small"
+                    {...getTagProps({ index })}
+                    key={option.key}
+                  />
+                ))
+              }
             />
 
             <FormControl fullWidth>
