@@ -18,3 +18,12 @@ Thumbs.db
 # Temporary files
 *.tmp
 hong/
+
+# Next.js
+.next/
+
+# TypeScript
+tsconfig.tsbuildinfo
+
+# Package lock files (optional - keep if needed)
+lambda/*/package-lock.json
