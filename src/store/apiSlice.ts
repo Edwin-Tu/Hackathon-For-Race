@@ -4,7 +4,7 @@ import type { Resident, Event, Reminder } from '../types';
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
+    baseUrl: process.env.NEXT_PUBLIC_API_URL ?? '/api',
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as any).auth?.token;
       if (token) headers.set('authorization', `Bearer ${token}`);
