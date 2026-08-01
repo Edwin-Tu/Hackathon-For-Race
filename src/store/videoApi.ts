@@ -3,6 +3,7 @@ import type {
   PresignedUrlResponse,
   TaskStatusResponse,
   LatestVideoResponse,
+  VideoHistoryResponse,
 } from '@/types/video';
 
 export const videoApi = createApi({
@@ -39,6 +40,14 @@ export const videoApi = createApi({
     getLatestVideo: builder.query<LatestVideoResponse | null, string>({
       query: (residentId) => `/residents/${residentId}/latest`,
     }),
+
+    // 取得住民歷史影片列表
+    getVideoHistory: builder.query<VideoHistoryResponse, string>({
+      query: (residentId) => `/residents/${residentId}/history`,
+      providesTags: (result, error, residentId) => [
+        { type: 'VideoTask', id: `history-${residentId}` },
+      ],
+    }),
   }),
 });
 
@@ -46,4 +55,5 @@ export const {
   useGetPresignedUrlMutation,
   useGetTaskStatusQuery,
   useGetLatestVideoQuery,
+  useGetVideoHistoryQuery,
 } = videoApi;

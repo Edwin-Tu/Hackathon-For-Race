@@ -34,3 +34,8 @@ export interface LatestVideoResponse {
   videoUrl: string;
   createdAt: number;
 }
+
+// 歷史影片列表回應
+export interface VideoHistoryResponse {
+  tasks: VideoTask[];
+}
