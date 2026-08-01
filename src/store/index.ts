@@ -1,12 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { api } from './apiSlice';
 import { videoApi } from './videoApi';
+import videoReducer from './videoSlice';
 
 export const store = configureStore({
   reducer: {
     [api.reducerPath]: api.reducer,
     [videoApi.reducerPath]: videoApi.reducer,
-    // 如需加入 auth reducer 可在此擴充
+    video: videoReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(api.middleware).concat(videoApi.middleware),
