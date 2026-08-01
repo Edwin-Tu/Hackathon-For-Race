@@ -19,6 +19,10 @@ import {
   useGetPresignedUrlMutation,
   useGetTaskStatusQuery,
 } from '@/store/videoApi';
+import { useDispatch, useSelector } from 'react-redux';
+import { setActiveTask, clearActiveTask, selectActiveTask } from '@/store/videoSlice';
+import { VideoHistoryList } from '@/components/VideoHistoryList';
+import { videoApi } from '@/store/videoApi';
 
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'failed';
 
@@ -29,6 +33,8 @@ const mockResidents = [
 ];
 
 export default function VideoUpload() {
+  const dispatch = useDispatch();
+  const activeTask = useSelector(selectActiveTask);
   const [file, setFile] = useState<File | null>(null);
   const [residentId, setResidentId] = useState('');
   const [status, setStatus] = useState<UploadStatus>('idle');
@@ -51,11 +57,27 @@ export default function VideoUpload() {
     if (taskStatus.status === 'COMPLETED' && taskStatus.videoUrl) {
       setStatus('completed');
       setVideoUrl(taskStatus.videoUrl);
+      dispatch(clearActiveTask());
+      // 刷新歷史列表
+      dispatch(videoApi.util.invalidateTags([{ type: 'VideoTask', id: `history-${residentId}` }]));
     } else if (taskStatus.status === 'FAILED') {
       setStatus('failed');
       setErrorMessage(taskStatus.errorMessage || '影片生成失敗');
+      dispatch(clearActiveTask());
+      // 刷新歷史列表
+      dispatch(videoApi.util.invalidateTags([{ type: 'VideoTask', id: `history-${residentId}` }]));
     }
-  }, [taskStatus]);
+  }, [taskStatus, dispatch, residentId]);
+
+  // 頁面載入時，若有 activeTask 則恢復狀態
+  useEffect(() => {
+    if (activeTask && status === 'idle') {
+      setResidentId(activeTask.residentId);
+      setTaskId(activeTask.taskId);
+      setStatus('processing');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 處理檔案選擇
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +129,7 @@ export default function VideoUpload() {
 
       // 3. 設定 taskId 並開始輪詢
       setTaskId(result.taskId);
+      dispatch(setActiveTask({ residentId, taskId: result.taskId }));
       setStatus('processing');
     } catch (error) {
       console.error('Upload error:', error);
@@ -249,6 +272,9 @@ export default function VideoUpload() {
           )}
         </CardContent>
       </Card>
+
+      {/* 歷史影片列表 */}
+      <VideoHistoryList residentId={residentId} />
     </Box>
   );
 }
