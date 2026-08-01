@@ -1,0 +1,12 @@
+{
+  "password": ["password", "passwd", "pwd", "密碼", "密碼是什麼", "登入密碼"],
+  "system_prompt": ["system prompt", "系統提示詞", "instructions", "初始指令", "system message"],
+  "api_key": ["api key", "api_key", "apikey", "金鑰", "api 金鑰", "access key"],
+  "token": ["token", "access token", "bearer token", "存取憑證"],
+  "secret": ["secret", "機密", "秘密", "secret key"],
+  "credential": ["credential", "credentials", "憑證", "登入憑證"],
+  "private_key": ["private key", "私鑰", "rsa key", "pem"],
+  "database": ["database", "db", "資料庫", "資料庫連線", "connection string"],
+  "config": ["config", "設定檔", "configuration", "env file", ".env"],
+  "internal_rule": ["internal rule", "內部規則", "guardrail", "防護規則", "policy"]
+}

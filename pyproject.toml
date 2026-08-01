@@ -1,0 +1,17 @@
+[project]
+name = "secretguard"
+version = "0.1.0"
+description = "SecretGuard - Prompt Injection & Secret Leakage Defense Pipeline"
+requires-python = ">=3.10"
+readme = "README.md"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["secretguard*"]
+
+[tool.setuptools.package-data]
+secretguard = ["**/*.json"]

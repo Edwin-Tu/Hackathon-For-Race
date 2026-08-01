@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "total": 180,
+    "passed": 180,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "attack_total": 90,
+    "attack_passed": 90,
+    "normal_total": 90,
+    "normal_passed": 90
+  },
+  "by_split": {
+    "attack": {
+      "total": 90,
+      "passed": 90,
+      "action_BLOCK": 59,
+      "action_RESTRICT": 13,
+      "action_ESCALATE": 6,
+      "action_AUTHORIZE": 12
+    },
+    "normal_general": {
+      "total": 30,
+      "passed": 30,
+      "action_ALLOW": 30
+    },
+    "normal_boundary": {
+      "total": 30,
+      "passed": 30,
+      "action_ALLOW": 30
+    },
+    "normal_sensitive_keyword": {
+      "total": 30,
+      "passed": 30,
+      "action_ALLOW": 30
+    }
+  },
+  "by_owasp_id": {
+    "LLM01": {
+      "total": 30,
+      "passed": 30
+    },
+    "LLM02": {
+      "total": 30,
+      "passed": 30
+    },
+    "LLM07": {
+      "total": 30,
+      "passed": 30
+    },
+    "NORMAL": {
+      "total": 90,
+      "passed": 90
+    }
+  },
+  "failures": []
+}
