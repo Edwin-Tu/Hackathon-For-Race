@@ -27,6 +27,8 @@ import {
   Checkbox,
   Alert,
   Avatar,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import GroupIcon from '@mui/icons-material/Group';
 import AddIcon from '@mui/icons-material/Add';
@@ -77,6 +79,64 @@ const scopeLabels: Record<keyof AuthScope, string> = {
   viewReminders: '查看提醒',
   viewAlerts: '查看警示',
   receiveNotifications: '接收通知',
+};
+
+// 授權模板類型
+type AuthTemplate = 'basic' | 'standard' | 'full' | 'custom';
+
+// 授權模板定義
+const authTemplates: Record<Exclude<AuthTemplate, 'custom'>, { label: string; scope: AuthScope }> = {
+  basic: {
+    label: '基本',
+    scope: {
+      viewSummary: true,
+      viewEvents: false,
+      viewReminders: false,
+      viewAlerts: false,
+      receiveNotifications: true,
+    },
+  },
+  standard: {
+    label: '標準',
+    scope: {
+      viewSummary: true,
+      viewEvents: false,
+      viewReminders: true,
+      viewAlerts: true,
+      receiveNotifications: true,
+    },
+  },
+  full: {
+    label: '完整',
+    scope: {
+      viewSummary: true,
+      viewEvents: true,
+      viewReminders: true,
+      viewAlerts: true,
+      receiveNotifications: true,
+    },
+  },
+};
+
+// 判斷 scope 符合哪個模板
+const getTemplateFromScope = (scope: AuthScope): AuthTemplate => {
+  for (const [key, template] of Object.entries(authTemplates)) {
+    const isMatch = Object.entries(template.scope).every(
+      ([k, v]) => scope[k as keyof AuthScope] === v
+    );
+    if (isMatch) return key as AuthTemplate;
+  }
+  return 'custom';
+};
+
+// 取得模板顯示文字
+const getTemplateLabelFromScope = (scope: AuthScope): string => {
+  const template = getTemplateFromScope(scope);
+  if (template === 'custom') {
+    const count = Object.values(scope).filter(Boolean).length;
+    return `自訂 (${count}/5)`;
+  }
+  return `${authTemplates[template].label}授權`;
 };
 
 // 模擬授權資料
@@ -143,20 +203,16 @@ export default function Authorizations() {
   const [authorizations, setAuthorizations] = useState<Authorization[]>(mockAuthorizations);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAuth, setEditAuth] = useState<Partial<Authorization>>({});
+  const [selectedTemplate, setSelectedTemplate] = useState<AuthTemplate>('standard');
 
   // 開啟新增對話框
   const handleAdd = () => {
+    setSelectedTemplate('standard');
     setEditAuth({
       authorizedUserName: '',
       authorizedUserEmail: '',
       relation: '',
-      scope: {
-        viewSummary: true,
-        viewEvents: false,
-        viewReminders: true,
-        viewAlerts: true,
-        receiveNotifications: true,
-      },
+      scope: { ...authTemplates.standard.scope },
       status: 'pending',
     });
     setEditDialogOpen(true);
@@ -164,8 +220,20 @@ export default function Authorizations() {
 
   // 開啟編輯對話框
   const handleEdit = (auth: Authorization) => {
+    setSelectedTemplate(getTemplateFromScope(auth.scope));
     setEditAuth({ ...auth });
     setEditDialogOpen(true);
+  };
+
+  // 處理模板變更
+  const handleTemplateChange = (newTemplate: AuthTemplate) => {
+    if (newTemplate && newTemplate !== 'custom') {
+      setSelectedTemplate(newTemplate);
+      setEditAuth({
+        ...editAuth,
+        scope: { ...authTemplates[newTemplate].scope },
+      });
+    }
   };
 
   // 切換範圍
@@ -177,10 +245,9 @@ export default function Authorizations() {
       viewAlerts: false,
       receiveNotifications: false,
     };
-    setEditAuth({
-      ...editAuth,
-      scope: { ...currentScope, [key]: !currentScope[key] },
-    });
+    const newScope = { ...currentScope, [key]: !currentScope[key] };
+    setEditAuth({ ...editAuth, scope: newScope });
+    setSelectedTemplate(getTemplateFromScope(newScope));
   };
 
   // 儲存授權
@@ -277,18 +344,12 @@ export default function Authorizations() {
                   <Chip size="small" label={auth.relation} variant="outlined" />
                 </TableCell>
                 <TableCell>
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                    {Object.entries(auth.scope)
-                      .filter(([_, enabled]) => enabled)
-                      .map(([key]) => (
-                        <Chip
-                          key={key}
-                          size="small"
-                          label={scopeLabels[key as keyof AuthScope]}
-                          variant="outlined"
-                        />
-                      ))}
-                  </Box>
+                  <Chip
+                    size="small"
+                    label={getTemplateLabelFromScope(auth.scope)}
+                    color={getTemplateFromScope(auth.scope) === 'custom' ? 'default' : 'primary'}
+                    variant={getTemplateFromScope(auth.scope) === 'custom' ? 'outlined' : 'filled'}
+                  />
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -368,6 +429,25 @@ export default function Authorizations() {
             <Typography variant="subtitle2" sx={{ mt: 1 }}>
               授權範圍
             </Typography>
+
+            <ToggleButtonGroup
+              value={selectedTemplate}
+              exclusive
+              onChange={(_, newValue) => newValue && handleTemplateChange(newValue)}
+              size="small"
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value="basic">基本</ToggleButton>
+              <ToggleButton value="standard">標準</ToggleButton>
+              <ToggleButton value="full">完整</ToggleButton>
+            </ToggleButtonGroup>
+
+            {selectedTemplate === 'custom' && (
+              <Alert severity="info" sx={{ mb: 1 }}>
+                已自訂授權範圍
+              </Alert>
+            )}
+
             <FormGroup>
               {Object.entries(scopeLabels).map(([key, label]) => (
                 <FormControlLabel
