@@ -1,7 +1,7 @@
 {
   "name": "hackathon-for-race",
-  "version": "1.0.0",
-  "description": "Smart Care Shield - AI-powered eldercare management system",
+  "version": "2.0.0",
+  "description": "Smart Care Shield - AI-powered eldercare management system for Taiwan hackathon competition",
   "private": true,
   "engines": {
     "node": ">=20.0.0",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -19,6 +20,9 @@
     "test": "jest --coverage",
     "test:watch": "jest --watch",
     "test:ci": "jest --ci --coverage --maxWorkers=2",
+    "test:unit": "jest --testPathPattern=__tests__/unit",
+    "test:integration": "jest --testPathPattern=__tests__/integration",
+    "test:e2e": "playwright test",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -26,6 +30,16 @@
     "prisma:reset": "prisma migrate reset",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "deploy:rds": "python scripts/deploy_rds_mysql.py",
+    "deploy:dynamodb": "python scripts/deploy_dynamodb.py",
+    "deploy:all": "python scripts/deploy_rds_and_sync.py",
+    "clean": "rm -rf .next node_modules coverage",
+    "clean:install": "npm run clean && npm install",
+    "audit:fix": "npm audit fix",
+    "audit:check": "npm audit --production",
     "prepare": "husky install || true",
     "postinstall": "prisma generate"
   },
@@ -33,8 +47,18 @@
     "type": "git",
     "url": "git+https://github.com/Edwin-Tu/Hackathon-For-Race.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "eldercare",
+    "ai",
+    "healthcare",
+    "nextjs",
+    "react",
+    "prisma",
+    "aws",
+    "hackathon",
+    "taiwan"
+  ],
+  "author": "Smart Care Shield Team",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/Edwin-Tu/Hackathon-For-Race/issues"
@@ -60,6 +84,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.5.2",
@@ -88,25 +113,17 @@
     "*.{json,css,md}": [
       "prettier --write"
     ]
-  "name": "hackathon-elder-app",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
   },
-  "dependencies": {
-    "lucide-react": "^0.469.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.2",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.14",
-    "vite": "^5.4.10"
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

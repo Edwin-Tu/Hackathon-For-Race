@@ -7,6 +7,17 @@
 *.env
 .envrc
 
+# AWS Credentials
+.aws/
+aws-exports.js
+amplify/
+.amplify/
+
+# API Keys & Secrets
+*.pem
+*.key
+*.cert
+
 # ==========================================
 # Dependencies
 # ==========================================
@@ -28,6 +39,10 @@ dist/
 .vercel
 .turbo
 
+# Next.js Build Info
+next-env.d.ts
+*.tsbuildinfo
+
 # ==========================================
 # Testing
 # ==========================================
@@ -35,6 +50,9 @@ coverage/
 .nyc_output
 *.lcov
 .jest-cache
+test-results/
+playwright-report/
+playwright/.cache/
 
 # ==========================================
 # Python
@@ -54,63 +72,75 @@ ENV/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
 # ==========================================
 # Prisma
 # ==========================================
 prisma/*.db
 prisma/*.db-journal
-migrations/
+prisma/migrations/*
+!prisma/migrations/.gitkeep
+
+# ==========================================
+# Database
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
 
 # ==========================================
 # IDE & Editors
 # ==========================================
-# Dependencies
-node_modules/
-
-# Build output
-/dist/
-.vite/
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-build.log
-
-# Temporary files
-/tmp/
-tmp.css
-
-# Local environment
-.env
-.env.*
-!.env.example
-
-# Editor / IDE
+# VSCode
 .vscode/
 !.vscode/extensions.json
 !.vscode/settings.json
+!.vscode/launch.json
+
+# JetBrains IDEs
 .idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
 *.swp
 *.swo
 *~
-.DS_Store
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
 *.sublime-project
 *.sublime-workspace
 
 # ==========================================
 # OS Files
 # ==========================================
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+.AppleDouble
+.LSOverride
+
+# Windows
 ehthumbs.db
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
 
 # ==========================================
 # Logs
@@ -122,6 +152,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+build.log
 
 # ==========================================
 # Temporary Files
@@ -131,27 +162,13 @@ temp/
 tmp/
 *.tmp
 *.temp
-
-# ==========================================
-# Build Outputs
-# ==========================================
-.next/
-out/
-build/
-dist/
-
-# ==========================================
-# AWS
-# ==========================================
-.aws/
-aws-exports.js
-amplify/
-.amplify/
+tmp.css
 
 # ==========================================
 # Docker
 # ==========================================
 docker-compose.override.yml
+.dockerignore.local
 
 # ==========================================
 # Backup Files
@@ -159,12 +176,15 @@ docker-compose.override.yml
 *.backup
 *.bak
 *-backup-*/
+*.orig
 
 # ==========================================
-# TypeScript
+# Build Artifacts
 # ==========================================
-*.tsbuildinfo
-next-env.d.ts
+*.bundle.js
+*.bundle.js.map
+*.chunk.js
+*.chunk.js.map
 
 # ==========================================
 # Misc
@@ -177,16 +197,31 @@ next-env.d.ts
 *.sln
 *.sw?
 
-# Preview / cache
-.cache/
-coverage/
-*.tsbuildinfo
+# Documentation Build
+docs/_build/
+site/
 
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Package manager locks (保留 package-lock.json，忽略其他)
+# ==========================================
+# Package Manager Locks
+# ==========================================
+# Keep package-lock.json, ignore others
 yarn.lock
 pnpm-lock.yaml
+
+# ==========================================
+# Project Specific
+# ==========================================
+# Work Records (keep directory, ignore temp files)
+docs/WorkRecord/*.tmp
+
+# Uploads
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Generated files
+src/generated/
+
+# Local configuration
+*.local
+
+docs/
