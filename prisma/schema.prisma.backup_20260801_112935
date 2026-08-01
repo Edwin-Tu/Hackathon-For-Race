@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Persona {
+  personaId       String    @id @default(cuid()) @map("persona_id")
+  displayName     String    @map("display_name")
+  memoryNamespace String    @unique @map("memory_namespace")
+  preferredLanguage String   @default("zh-TW") @map("preferred_language")
+  responseStyle   String?   @map("response_style")
+  responseStyleConfig Json?  @map("response_style_config")
+  interests       Json? 
+  status          String    @default("active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  sessions        Session[]
+  interactions    Interaction[]
+  reminders       Reminder[]
+  careEvents      CareEvent[]
+  careAlerts      CareAlert[]
+  audits          AuditLog[]
+  preferences     PersonaPreference[]
+  summaries       DailySummary[]
+
+  @@map("personas")
+}
+
+model Session {
+  sessionId       String    @id @default(cuid()) @map("session_id")
+  personaId       String?   @map("persona_id")
+  sessionStatus   String    @default("active") @map("session_status")
+  clientType      String    @map("client_type")
+  clientIdentifier String?  @map("client_identifier")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  lastActiveAt    DateTime  @updatedAt @map("last_active_at")
+  expiresAt       DateTime? @map("expires_at")
+  endedAt         DateTime? @map("ended_at")
+  endReason       String?   @map("end_reason")
+
+  persona         Persona?  @relation(fields: [personaId], references: [personaId])
+  interactions    Interaction[]
+  confirmationRequests ConfirmationRequest[]
+
+  @@map("sessions")
+}
+
+model Interaction {
+  interactionId   String    @id @default(cuid()) @map("interaction_id")
+  requestId       String    @unique @map("request_id")
+  sessionId       String    @map("session_id")
+  personaId       String    @map("persona_id")
+  inputType       String    @map("input_type")
+  transcript      String?   @db.Text
+  normalizedText  String?   @db.Text @map("normalized_text")
+  asrLanguage     String?   @map("asr_language")
+  asrConfidence   Float?    @map("asr_confidence")
+  asrMetadata     Json?     @map("asr_metadata")
+  agentResponse   String?   @db.Text @map("agent_response")
+  interactionStatus String   @default("received") @map("interaction_status")
+  errorCode       String?   @map("error_code")
+  errorMessage    String?   @map("error_message")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+
+  session         Session   @relation(fields: [sessionId], references: [sessionId])
+  persona         Persona   @relation(fields: [personaId], references: [personaId])
+  toolExecutions  ToolExecution[]
+  reminders       Reminder[]
+  careEvents      CareEvent[]
+  summaries       DailySummaryEvent[]
+
+  @@map("interactions")
+}
+
+model ToolExecution {
+  toolExecutionId String    @id @default(cuid()) @map("tool_execution_id")
+  requestId       String    @map("request_id")
+  sessionId       String    @map("session_id")
+  personaId       String    @map("persona_id")
+  interactionId   String?   @map("interaction_id")
+  toolName        String    @map("tool_name")
+  toolArguments   Json      @map("tool_arguments")
+  toolStatus      String    @default("proposed") @map("tool_status")
+  riskLevel       String?   @map("risk_level")
+  idempotencyKey  String?   @unique @map("idempotency_key")
+  recordType      String?   @map("record_type")
+  recordId        String?   @map("record_id")
+  resultPayload   Json?     @map("result_payload")
+  errorCode       String?   @map("error_code")
+  errorMessage    String?   @map("error_message")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+
+  interaction     Interaction? @relation(fields: [interactionId], references: [interactionId])
+
+  @@map("tool_executions")
+}
+
+model PersonaPreference {
+  preferenceId      String   @id @default(cuid()) @map("preference_id")
+  personaId         String   @map("persona_id")
+  preferenceKey     String   @map("preference_key")
+  preferenceValue   Json     @map("preference_value")
+  version           Int      @default(1)
+  isActive          Boolean  @default(true) @map("is_active")
+  sourceType        String   @map("source_type")
+  sourceInteractionId String? @map("source_interaction_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  persona           Persona  @relation(fields: [personaId], references: [personaId])
+
+  @@unique([personaId, preferenceKey, version])
+  @@map("persona_preferences")
+}
+
+model CareEvent {
+  eventId          String    @id @default(cuid()) @map("event_id")
+  personaId        String    @map("persona_id")
+  sessionId        String?   @map("session_id")
+  interactionId    String?   @map("interaction_id")
+  toolExecutionId  String?   @map("tool_execution_id")
+  eventType        String    @map("event_type")
+  content          String    @db.Text
+  eventTime        DateTime? @map("event_time")
+  eventEndTime     DateTime? @map("event_end_time")
+  confidence       Float? 
+  sourceText       String?   @db.Text @map("source_text")
+  memoryStatus     String    @default("candidate") @map("memory_status")
+  riskLevel        String?   @map("risk_level")
+  createdByType    String?   @map("created_by_type")
+  createdById      String?   @map("created_by_id")
+  committedAt      DateTime? @map("committed_at")
+  archivedAt       DateTime? @map("archived_at")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  persona          Persona   @relation(fields: [personaId], references: [personaId])
+  interaction      Interaction? @relation(fields: [interactionId], references: [interactionId])
+  revisions        EventRevision[]
+
+  @@map("care_events")
+}
+
+model EventRevision {
+  revisionId      String   @id @default(cuid()) @map("revision_id")
+  eventId         String   @map("event_id")
+  revisionNumber  Int      @map("revision_number")
+  oldData         Json?    @map("old_data")
+  newData         Json?    @map("new_data")
+  changeReason    String?  @map("change_reason")
+  changedBy       String?  @map("changed_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  event           CareEvent @relation(fields: [eventId], references: [eventId])
+
+  @@unique([eventId, revisionNumber])
+  @@map("event_revisions")
+}
+
+model Reminder {
+  reminderId       String    @id @default(cuid()) @map("reminder_id")
+  personaId        String    @map("persona_id")
+  interactionId    String?   @map("interaction_id")
+  title            String
+  description      String?   @db.Text
+  scheduledAt      DateTime  @map("scheduled_at")
+  importance       String    @default("normal")
+  reminderStatus   String    @default("scheduled") @map("reminder_status")
+  confirmationStatus String? @default("pending") @map("confirmation_status")
+  idempotencyKey   String?   @unique @map("idempotency_key")
+  triggeredAt      DateTime? @map("triggered_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  persona          Persona   @relation(fields: [personaId], references: [personaId])
+  interaction      Interaction? @relation(fields: [interactionId], references: [interactionId])
+
+  @@map("reminders")
+}
+
+model ConfirmationRequest {
+  confirmationId   String    @id @default(cuid()) @map("confirmation_id")
+  sessionId        String    @map("session_id")
+  targetType       String    @map("target_type")
+  targetId         String    @map("target_id")
+  confirmationQuestion String  @map("confirmation_question")
+  confirmationStatus String   @default("pending") @map("confirmation_status")
+  expiresAt        DateTime? @map("expires_at")
+  responseText     String?   @map("response_text")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  session          Session   @relation(fields: [sessionId], references: [sessionId])
+
+  @@map("confirmation_requests")
+}
+
+model DailySummary {
+  summaryId        String    @id @default(cuid()) @map("summary_id")
+  personaId        String    @map("persona_id")
+  summaryDate      DateTime  @map("summary_date")
+  summaryText      String    @db.Text @map("summary_text")
+  summaryVersion   Int       @default(1) @map("summary_version")
+  reviewStatus     String    @default("draft") @map("review_status")
+  generationModel  String?   @map("generation_model")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  persona          Persona   @relation(fields: [personaId], references: [personaId])
+  events           DailySummaryEvent[]
+
+  @@map("daily_summaries")
+}
+
+model DailySummaryEvent {
+  summaryId        String    @map("summary_id")
+  eventId          String    @map("event_id")
+  sourceOrder      Int       @map("source_order")
+  includedReason   String?   @map("included_reason")
+  interactionId    String?   @map("interaction_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  summary          DailySummary @relation(fields: [summaryId], references: [summaryId])
+  interaction      Interaction? @relation(fields: [interactionId], references: [interactionId])
+
+  @@id([summaryId, eventId])
+  @@map("daily_summary_events")
+}
+
+model CareAlert {
+  alertId          String    @id @default(cuid()) @map("alert_id")
+  personaId        String    @map("persona_id")
+  alertType        String    @map("alert_type")
+  severity         String
+  sourceText       String?   @db.Text @map("source_text")
+  alertStatus      String    @default("open") @map("alert_status")
+  assignedTo       String?   @map("assigned_to")
+  idempotencyKey   String?   @unique @map("idempotency_key")
+  resolutionNote   String?   @db.Text @map("resolution_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  persona          Persona   @relation(fields: [personaId], references: [personaId])
+
+  @@map("care_alerts")
+}
+
+model AuditLog {
+  auditId          String    @id @default(cuid()) @map("audit_id")
+  requestId        String    @map("request_id")
+  actorType        String    @map("actor_type")
+  actionType       String    @map("action_type")
+  resourceType     String    @map("resource_type")
+  resourceId       String?   @map("resource_id")
+  toolName         String?   @map("tool_name")
+  riskLevel        String?   @map("risk_level")
+  result           String
+  reason           String?   @db.Text
+  metadata         Json? 
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  persona          Persona?  @relation(fields: [personaId], references: [personaId])
+  personaId        String?   @map("persona_id")
+
+  @@map("audit_logs")
+}
+
+model AppUser {
+  userId           String    @id @default(cuid()) @map("user_id")
+  username         String    @unique
+  passwordHash     String    @map("password_hash")
+  displayName      String    @map("display_name")
+  role             String    @default("caregiver")
+  personaId        String?   @map("persona_id")
+  isActive         Boolean   @default(true) @map("is_active")
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  accesses         UserPersonaAccess[]
+  sessions         AuthSession[]
+
+  @@map("app_users")
+}
+
+model UserPersonaAccess {
+  accessId         String    @id @default(cuid()) @map("access_id")
+  userId           String    @map("user_id")
+  personaId        String    @map("persona_id")
+  accessLevel      String    @default("read") @map("access_level")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             AppUser   @relation(fields: [userId], references: [userId])
+
+  @@unique([userId, personaId])
+  @@map("user_persona_access")
+}
+
+model AuthSession {
+  sessionTokenHash String    @id @map("session_token_hash")
+  userId           String    @map("user_id")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastSeenAt       DateTime? @map("last_seen_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             AppUser   @relation(fields: [userId], references: [userId])
+
+  @@map("auth_sessions")
+}
