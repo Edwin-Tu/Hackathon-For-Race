@@ -222,14 +222,14 @@ export default function FamilyDashboard() {
                   <Paper 
                     sx={{ 
                       p: { xs: 1.5, sm: 2 }, 
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50', 
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'grey.50', 
                       mb: { xs: 1.5, sm: 2 } 
                     }}
                   >
                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                       今日摘要
                     </Typography>
-                    <Typography variant="body1" color="text.primary">{resident.todaySummary}</Typography>
+                    <Typography variant="body1">{resident.todaySummary}</Typography>
                   </Paper>
 
                   {/* 快速資訊 */}

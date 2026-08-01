@@ -272,11 +272,11 @@ export default function Timeline() {
                   </Box>
 
                   {/* 來源文字 */}
-                  <Box sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100', p: 1, borderRadius: 1, mt: 1 }}>
+                  <Box sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'grey.100', p: 1, borderRadius: 1, mt: 1 }}>
                     <Typography variant="caption" color="text.secondary">
                       原始語句：
                     </Typography>
-                    <Typography variant="body2" color="text.primary" sx={{ fontStyle: 'italic' }}>
+                    <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
                       「{event.sourceText}」
                     </Typography>
                     <Typography variant="caption" color="text.secondary">

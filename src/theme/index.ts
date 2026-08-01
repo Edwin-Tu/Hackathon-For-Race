@@ -470,6 +470,7 @@ export const darkTheme = createTheme({
         root: {
           borderRadius: 16,
           backgroundImage: 'none',
+          color: '#F1F5F9',
         },
         elevation1: {
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
@@ -489,10 +490,18 @@ export const darkTheme = createTheme({
           boxShadow: '0 2px 12px rgba(0, 0, 0, 0.25)',
           backgroundImage: 'none',
           border: '1px solid rgba(255, 255, 255, 0.05)',
+          color: '#F1F5F9',
           '&:hover': {
             transform: 'translateY(-4px)',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
           },
+        },
+      },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: {
+          color: '#F1F5F9',
         },
       },
     },
@@ -521,6 +530,106 @@ export const darkTheme = createTheme({
               boxShadow: '0 0 0 3px rgba(56, 189, 248, 0.25)',
             },
           },
+          '& .MuiInputLabel-root': {
+            color: '#94A3B8',
+          },
+          '& .MuiOutlinedInput-input': {
+            color: '#F1F5F9',
+          },
+        },
+      },
+    },
+    MuiTypography: {
+      styleOverrides: {
+        root: {
+          color: '#F1F5F9',
+        },
+        h1: { color: '#F1F5F9' },
+        h2: { color: '#F1F5F9' },
+        h3: { color: '#F1F5F9' },
+        h4: { color: '#F1F5F9' },
+        h5: { color: '#F1F5F9' },
+        h6: { color: '#F1F5F9' },
+        subtitle1: { color: '#F1F5F9' },
+        subtitle2: { color: '#E2E8F0' },
+        body1: { color: '#F1F5F9' },
+        body2: { color: '#E2E8F0' },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          color: '#F1F5F9',
+          borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+        },
+        head: {
+          color: '#F1F5F9',
+          fontWeight: 600,
+        },
+      },
+    },
+    MuiListItemText: {
+      styleOverrides: {
+        primary: {
+          color: '#F1F5F9',
+        },
+        secondary: {
+          color: '#94A3B8',
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          '& .MuiAlert-message': {
+            color: '#F1F5F9',
+          },
+        },
+        standardInfo: {
+          backgroundColor: 'rgba(56, 189, 248, 0.15)',
+          '& .MuiAlert-icon': {
+            color: '#38BDF8',
+          },
+          '& .MuiAlert-message': {
+            color: '#F1F5F9',
+          },
+        },
+        standardSuccess: {
+          backgroundColor: 'rgba(74, 222, 128, 0.15)',
+          '& .MuiAlert-icon': {
+            color: '#4ADE80',
+          },
+          '& .MuiAlert-message': {
+            color: '#F1F5F9',
+          },
+        },
+        standardWarning: {
+          backgroundColor: 'rgba(251, 191, 36, 0.15)',
+          '& .MuiAlert-icon': {
+            color: '#FBBF24',
+          },
+          '& .MuiAlert-message': {
+            color: '#F1F5F9',
+          },
+        },
+        standardError: {
+          backgroundColor: 'rgba(248, 113, 113, 0.15)',
+          '& .MuiAlert-icon': {
+            color: '#F87171',
+          },
+          '& .MuiAlert-message': {
+            color: '#F1F5F9',
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          color: '#F1F5F9',
+        },
+        outlined: {
+          borderColor: 'rgba(255, 255, 255, 0.23)',
         },
       },
     },

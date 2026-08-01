@@ -23,6 +23,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SecurityIcon from '@mui/icons-material/Security';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import VideocamIcon from '@mui/icons-material/Videocam';
 
 // 底部導航項目介面
 interface BottomNavItem {
@@ -57,6 +58,7 @@ const bottomNavRoutes: Record<string, { items: BottomNavItem[]; moreItems?: Bott
     items: [
       { key: 'dashboard', label: '概況', icon: <DashboardIcon />, href: '/family/Dashboard' },
       { key: 'notifications', label: '通知', icon: <NotificationsIcon />, href: '/family/Notifications', badge: 3 },
+      { key: 'video', label: '動圖', icon: <VideocamIcon />, href: '/family/VideoUpload' },
       { key: 'authorizations', label: '授權', icon: <GroupIcon />, href: '/family/Authorizations' },
     ],
   },

@@ -39,6 +39,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import ShieldIcon from '@mui/icons-material/Shield';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import VideocamIcon from '@mui/icons-material/Videocam';
 
 const drawerWidth = 260;
 
@@ -93,6 +94,12 @@ const routes: Record<string, RouteGroup[]> = {
       items: [
         { href: '/family/Dashboard', label: '概況', icon: <DashboardIcon /> },
         { href: '/family/Notifications', label: '通知', icon: <NotificationsIcon />, badge: 3 },
+      ],
+    },
+    {
+      title: '影音',
+      items: [
+        { href: '/family/VideoUpload', label: '動圖生成', icon: <VideocamIcon /> },
       ],
     },
     {

@@ -209,8 +209,8 @@ export default function Summary() {
                   </Box>
 
                   {/* 摘要內容 */}
-                  <Paper sx={{ p: 2, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50', mb: 2 }}>
-                    <Typography variant="body1" color="text.primary">{summary.summary}</Typography>
+                  <Paper sx={{ p: 2, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'grey.50', mb: 2 }}>
+                    <Typography variant="body1">{summary.summary}</Typography>
                   </Paper>
 
                   {/* 來源事件展開按鈕 */}
@@ -264,8 +264,8 @@ export default function Summary() {
                         </ListItem>
                       ))}
                     </List>
-                    <Box sx={{ mt: 1, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
-                      <Typography variant="caption" color="info.contrastText">
+                    <Box sx={{ mt: 1, p: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(56, 189, 248, 0.15)' : 'info.light', borderRadius: 1 }}>
+                      <Typography variant="caption" sx={{ color: (theme) => theme.palette.mode === 'dark' ? '#F1F5F9' : 'info.contrastText' }}>
                         💡 此摘要僅根據上方的結構化事件生成，照護者可追溯每段內容的來源。若有錯誤可前往「記憶修正」頁面修正。
                       </Typography>
                     </Box>

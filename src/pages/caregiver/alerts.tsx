@@ -251,24 +251,24 @@ export default function Alerts() {
       {/* 統計卡片 */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light' }}>
-            <Typography variant="h3" color="error.dark">
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(248, 113, 113, 0.15)' : 'error.light' }}>
+            <Typography variant="h3" sx={{ color: (theme) => theme.palette.mode === 'dark' ? '#F87171' : 'error.dark' }}>
               {activeAlerts.length}
             </Typography>
             <Typography variant="body2">待處理</Typography>
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light' }}>
-            <Typography variant="h3" color="warning.dark">
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(251, 191, 36, 0.15)' : 'warning.light' }}>
+            <Typography variant="h3" sx={{ color: (theme) => theme.palette.mode === 'dark' ? '#FBBF24' : 'warning.dark' }}>
               {acknowledgedAlerts.length}
             </Typography>
             <Typography variant="body2">處理中</Typography>
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light' }}>
-            <Typography variant="h3" color="success.dark">
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(74, 222, 128, 0.15)' : 'success.light' }}>
+            <Typography variant="h3" sx={{ color: (theme) => theme.palette.mode === 'dark' ? '#4ADE80' : 'success.dark' }}>
               {resolvedAlerts.length}
             </Typography>
             <Typography variant="body2">已解決</Typography>
@@ -369,16 +369,16 @@ export default function Alerts() {
                     </Box>
                   </Box>
 
-                  <Typography variant="body1" color="text.primary" sx={{ mb: 2 }}>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
                     {alert.message}
                   </Typography>
 
                   {alert.sourceText && (
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100', mb: 2 }}>
+                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'grey.100', mb: 2 }}>
                       <Typography variant="caption" color="text.secondary">
                         原始語句：
                       </Typography>
-                      <Typography variant="body2" color="text.primary" sx={{ fontStyle: 'italic' }}>
+                      <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
                         「{alert.sourceText}」
                       </Typography>
                     </Paper>
