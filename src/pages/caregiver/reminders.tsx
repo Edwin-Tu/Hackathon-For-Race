@@ -30,12 +30,26 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
+import MedicationIcon from '@mui/icons-material/Medication';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import EventIcon from '@mui/icons-material/Event';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // 提醒狀態類型
 type ReminderStatus = 'pending' | 'completed' | 'missed' | 'cancelled';
 
 // 重要程度
 type Importance = 'high' | 'medium' | 'low';
+
+// 提醒類別
+type ReminderCategory = 'medication' | 'health' | 'appointment' | 'other';
+
+const categoryConfig: Record<ReminderCategory, { label: string; icon: React.ReactNode; color: 'error' | 'success' | 'info' | 'default' }> = {
+  medication: { label: '用藥', icon: <MedicationIcon />, color: 'error' },
+  health: { label: '健康狀況', icon: <FavoriteIcon />, color: 'success' },
+  appointment: { label: '回診', icon: <EventIcon />, color: 'info' },
+  other: { label: '其他', icon: <MoreHorizIcon />, color: 'default' },
+};
 
 interface Reminder {
   id: string;
@@ -45,6 +59,7 @@ interface Reminder {
   scheduledAt: Date;
   status: ReminderStatus;
   importance: Importance;
+  category: ReminderCategory;
   idempotencyKey: string;
   createdBy: string;
   completedAt?: Date;
@@ -74,6 +89,7 @@ const mockReminders: Reminder[] = [
     scheduledAt: new Date('2026-08-02T15:00:00'),
     status: 'pending',
     importance: 'high',
+    category: 'appointment',
     idempotencyKey: 'rem-r1-20260802-1500',
     createdBy: 'voice_agent',
   },
@@ -85,6 +101,7 @@ const mockReminders: Reminder[] = [
     scheduledAt: new Date('2026-08-01T18:00:00'),
     status: 'completed',
     importance: 'high',
+    category: 'medication',
     idempotencyKey: 'rem-r1-20260801-1800',
     createdBy: 'voice_agent',
     completedAt: new Date('2026-08-01T18:05:00'),
@@ -97,6 +114,7 @@ const mockReminders: Reminder[] = [
     scheduledAt: new Date('2026-08-01T14:00:00'),
     status: 'completed',
     importance: 'medium',
+    category: 'health',
     idempotencyKey: 'rem-r1-20260801-1400',
     createdBy: 'caregiver',
     completedAt: new Date('2026-08-01T14:00:00'),
@@ -109,6 +127,7 @@ const mockReminders: Reminder[] = [
     scheduledAt: new Date('2026-08-01T08:30:00'),
     status: 'completed',
     importance: 'high',
+    category: 'medication',
     idempotencyKey: 'rem-r2-20260801-0830',
     createdBy: 'voice_agent',
     completedAt: new Date('2026-08-01T08:35:00'),
@@ -121,6 +140,7 @@ const mockReminders: Reminder[] = [
     scheduledAt: new Date('2026-08-01T16:00:00'),
     status: 'missed',
     importance: 'medium',
+    category: 'other',
     idempotencyKey: 'rem-r2-20260801-1600',
     createdBy: 'family',
   },
@@ -161,6 +181,7 @@ export default function Reminders() {
   const handleAdd = () => {
     setEditReminder({
       importance: 'medium',
+      category: 'other',
       status: 'pending',
     });
     setEditDialogOpen(true);
@@ -183,6 +204,7 @@ export default function Reminders() {
         scheduledAt: editReminder.scheduledAt || new Date(),
         status: 'pending',
         importance: editReminder.importance || 'medium',
+        category: editReminder.category || 'other',
         idempotencyKey: `rem-${Date.now()}`,
         createdBy: 'caregiver',
       };
@@ -198,6 +220,7 @@ export default function Reminders() {
         <TableRow>
           <TableCell>住民</TableCell>
           <TableCell>提醒內容</TableCell>
+          <TableCell>類別</TableCell>
           <TableCell>排程時間</TableCell>
           <TableCell>重要性</TableCell>
           <TableCell>狀態</TableCell>
@@ -208,7 +231,7 @@ export default function Reminders() {
       <TableBody>
         {data.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} align="center">
+            <TableCell colSpan={8} align="center">
               <Typography color="text.secondary">沒有提醒</Typography>
             </TableCell>
           </TableRow>
@@ -217,6 +240,14 @@ export default function Reminders() {
             <TableRow key={reminder.id}>
               <TableCell>{reminder.residentName}</TableCell>
               <TableCell>{reminder.title}</TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  icon={categoryConfig[reminder.category].icon}
+                  label={categoryConfig[reminder.category].label}
+                  color={categoryConfig[reminder.category].color}
+                />
+              </TableCell>
               <TableCell>
                 {reminder.scheduledAt.toLocaleString('zh-TW', {
                   month: 'numeric',
@@ -301,6 +332,25 @@ export default function Reminders() {
               value={editReminder.title || ''}
               onChange={(e) => setEditReminder({ ...editReminder, title: e.target.value })}
             />
+            <FormControl fullWidth>
+              <InputLabel>類別</InputLabel>
+              <Select
+                value={editReminder.category || 'other'}
+                label="類別"
+                onChange={(e) =>
+                  setEditReminder({ ...editReminder, category: e.target.value as ReminderCategory })
+                }
+              >
+                {Object.entries(categoryConfig).map(([key, config]) => (
+                  <MenuItem key={key} value={key}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {config.icon}
+                      {config.label}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="排程時間"
               type="datetime-local"
