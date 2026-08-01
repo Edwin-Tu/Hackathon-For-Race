@@ -148,7 +148,7 @@ export default function Security() {
 
       {/* 總體統計卡片 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -170,7 +170,7 @@ export default function Security() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -192,7 +192,7 @@ export default function Security() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -219,7 +219,7 @@ export default function Security() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -244,7 +244,7 @@ export default function Security() {
 
       <Grid container spacing={3}>
         {/* 攻擊類型統計 */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               攻擊類型分佈
@@ -291,7 +291,7 @@ export default function Security() {
         </Grid>
 
         {/* 風險分數趨勢 */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               風險分數趨勢
@@ -342,7 +342,7 @@ export default function Security() {
         </Grid>
 
         {/* 洩漏偵測記錄 */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               洩漏偵測記錄
@@ -373,8 +373,8 @@ export default function Security() {
                     <TableCell>
                       <Chip
                         size="small"
-                        label={severityConfig[record.severity].label}
-                        color={severityConfig[record.severity].color}
+                        label={severityConfig[record.severity]?.label || record.severity}
+                        color={severityConfig[record.severity]?.color || 'default'}
                       />
                     </TableCell>
                     <TableCell>

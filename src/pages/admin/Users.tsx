@@ -288,7 +288,7 @@ export default function Users() {
               <PeopleIcon sx={{ fontSize: 28 }} />
             </Avatar>
             <Box>
-              <Typography variant="h4" fontWeight={700}>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 使用者管理
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -399,7 +399,7 @@ export default function Users() {
                     >
                       <SearchIcon sx={{ fontSize: 28, color: 'text.secondary' }} />
                     </Avatar>
-                    <Typography color="text.secondary" fontWeight={500}>
+                    <Typography color="text.secondary" sx={{ fontWeight: 500 }}>
                       沒有符合條件的使用者
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -432,7 +432,7 @@ export default function Users() {
                           {user.displayName[0] || <PersonIcon />}
                         </Avatar>
                         <Box>
-                          <Typography fontWeight={600}>{user.displayName}</Typography>
+                          <Typography sx={{ fontWeight: 600 }}>{user.displayName}</Typography>
                           <Typography variant="caption" color="text.secondary">
                             {user.email || '無 Email'}
                           </Typography>
@@ -568,7 +568,7 @@ export default function Users() {
         onClose={() => !saving && setEditDialogOpen(false)} 
         maxWidth="sm" 
         fullWidth
-        TransitionComponent={Zoom}
+        slots={{ transition: Zoom }}
       >
         <DialogTitle sx={{ pb: 1 }}>
           {editUser.id ? '編輯使用者' : '新增使用者'}
@@ -636,17 +636,12 @@ export default function Users() {
                 renderInput={(params) => (
                   <TextField {...params} label="指派住民" placeholder="選擇住民" />
                 )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      variant="outlined"
-                      label={option.name}
-                      size="small"
-                      {...getTagProps({ index })}
-                      key={option.id}
-                    />
-                  ))
-                }
+                slotProps={{
+                  chip: {
+                    variant: 'outlined',
+                    size: 'small',
+                  },
+                }}
               />
             )}
 
@@ -691,9 +686,9 @@ export default function Users() {
       <Dialog 
         open={deleteDialogOpen} 
         onClose={() => setDeleteDialogOpen(false)}
-        TransitionComponent={Zoom}
-        PaperProps={{
-          sx: { minWidth: 380 }
+        slots={{ transition: Zoom }}
+        slotProps={{
+          paper: { sx: { minWidth: 380 } }
         }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
