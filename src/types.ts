@@ -17,3 +17,6 @@ export interface Reminder {
   title: string;
   scheduledAt: string;
 }
+
+// Video 相關型別
+export * from './types/video';
