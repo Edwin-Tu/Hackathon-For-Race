@@ -321,8 +321,14 @@ export default function ResidentDetail() {
         </Tabs>
       </Paper>
 
-      {/* 個人資料 */}
-      {tabValue === 0 && (
+      {/* 分頁內容容器 - 可滾動 */}
+      <Box sx={{ 
+        maxHeight: 'calc(100vh - 350px)', 
+        overflow: 'auto',
+        mt: 2 
+      }}>
+        {/* 個人資料 */}
+        {tabValue === 0 && (
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Card>
@@ -598,6 +604,7 @@ export default function ResidentDetail() {
           </CardContent>
         </Card>
       )}
+      </Box>
 
       {/* Persona 切換對話框 */}
       <Dialog open={switchDialogOpen} onClose={() => setSwitchDialogOpen(false)}>
