@@ -14,7 +14,9 @@ const drawerWidth = 260;
 function isTokenExpired(token: string | null): boolean {
   if (!token) return true;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const tokenPart = token.split('.')[1];
+    if (!tokenPart) return true;
+    const payload = JSON.parse(atob(tokenPart));
     return payload.exp < Date.now();
   } catch {
     return true;
@@ -85,7 +87,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             autoHideDuration={5000}
             onClose={() => setSessionExpired(false)}
             anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-            TransitionComponent={Fade}
+            slots={{ transition: Fade }}
           >
             <Alert 
               severity="warning" 
@@ -144,7 +146,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         open={sessionExpired}
         autoHideDuration={5000}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        TransitionComponent={Fade}
+        slots={{ transition: Fade }}
       >
         <Alert 
           severity="warning"

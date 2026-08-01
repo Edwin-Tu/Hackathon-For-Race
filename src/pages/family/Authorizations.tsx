@@ -333,7 +333,7 @@ export default function Authorizations() {
                       <PersonIcon />
                     </Avatar>
                     <Box>
-                      <Typography fontWeight="bold">{auth.authorizedUserName}</Typography>
+                      <Typography sx={{ fontWeight: 'bold' }}>{auth.authorizedUserName}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {auth.authorizedUserEmail}
                       </Typography>

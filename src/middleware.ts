@@ -18,6 +18,9 @@ export function middleware(req: NextRequest) {
   // 簡易解析 JWT payload（不驗證簽名，僅供 Demo）
   try {
     const payloadBase64 = token.split('.')[1];
+    if (!payloadBase64) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
     const payload = JSON.parse(atob(payloadBase64)) as {
       role: string;
       sub?: string;

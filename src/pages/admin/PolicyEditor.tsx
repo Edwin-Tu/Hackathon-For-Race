@@ -372,7 +372,7 @@ export default function PolicyEditor() {
                       <Switch checked={rule.enabled} onChange={() => toggleRuleEnabled(rule.id)} />
                     </TableCell>
                     <TableCell>
-                      <Typography fontWeight="bold">{rule.name}</Typography>
+                      <Typography sx={{ fontWeight: 'bold' }}>{rule.name}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {rule.description}
                       </Typography>
@@ -583,17 +583,12 @@ export default function PolicyEditor() {
               renderInput={(params) => (
                 <TextField {...params} placeholder="選擇權限" size="small" />
               )}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    variant="outlined"
-                    label={option.label}
-                    size="small"
-                    {...getTagProps({ index })}
-                    key={option.key}
-                  />
-                ))
-              }
+              slotProps={{
+                chip: {
+                  variant: 'outlined',
+                  size: 'small',
+                },
+              }}
             />
 
             <Typography variant="subtitle2" sx={{ mt: 2 }}>受影響角色</Typography>
@@ -608,17 +603,12 @@ export default function PolicyEditor() {
               renderInput={(params) => (
                 <TextField {...params} placeholder="選擇角色" size="small" />
               )}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    variant="outlined"
-                    label={option.label}
-                    size="small"
-                    {...getTagProps({ index })}
-                    key={option.key}
-                  />
-                ))
-              }
+              slotProps={{
+                chip: {
+                  variant: 'outlined',
+                  size: 'small',
+                },
+              }}
             />
 
             <FormControl fullWidth>

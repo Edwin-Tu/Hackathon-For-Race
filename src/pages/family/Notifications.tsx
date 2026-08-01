@@ -212,7 +212,7 @@ export default function Notifications() {
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography fontWeight={notification.read ? 'normal' : 'bold'}>
+                        <Typography sx={{ fontWeight: notification.read ? 'normal' : 'bold' }}>
                           {notification.title}
                         </Typography>
                         <Chip

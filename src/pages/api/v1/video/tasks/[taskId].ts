@@ -29,12 +29,17 @@ export default async function handler(
 
     const task = result.Item as VideoTask;
 
-    return res.status(200).json({
+    const response: TaskStatusResponse = {
       taskId: task.taskId,
       status: task.status,
-      videoUrl: task.videoUrl,
-      errorMessage: task.errorMessage,
-    });
+    };
+    if (task.videoUrl !== undefined) {
+      response.videoUrl = task.videoUrl;
+    }
+    if (task.errorMessage !== undefined) {
+      response.errorMessage = task.errorMessage;
+    }
+    return res.status(200).json(response);
   } catch (error) {
     console.error('Get task status error:', error);
     return res.status(500).json({ error: '查詢任務狀態失敗' });

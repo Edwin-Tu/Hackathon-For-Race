@@ -89,13 +89,13 @@ const allPermissions: Permission[] = [
 ];
 
 // 依類別分組權限
-const permissionsByCategory = allPermissions.reduce(
+const permissionsByCategory = allPermissions.reduce<Record<string, Permission[]>>(
   (acc, perm) => {
     if (!acc[perm.category]) acc[perm.category] = [];
-    acc[perm.category].push(perm);
+    acc[perm.category]!.push(perm);
     return acc;
   },
-  {} as Record<string, Permission[]>
+  {}
 );
 
 // 模擬角色資料
@@ -234,7 +234,7 @@ export default function Roles() {
             {roles.map((role) => (
               <TableRow key={role.id}>
                 <TableCell>
-                  <Typography fontWeight="bold">{role.displayName}</Typography>
+                  <Typography sx={{ fontWeight: 'bold' }}>{role.displayName}</Typography>
                 </TableCell>
                 <TableCell>
                   <Chip size="small" label={role.name} variant="outlined" />

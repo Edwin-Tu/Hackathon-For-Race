@@ -218,7 +218,7 @@ export default function Drawer({ mobileOpen = false, onClose }: DrawerProps) {
             >
               {roleTitleConfig[role].icon}
             </Box>
-            <Typography variant="subtitle1" fontWeight={600}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               {roleTitleConfig[role].title}
             </Typography>
           </Box>
@@ -310,10 +310,14 @@ export default function Drawer({ mobileOpen = false, onClose }: DrawerProps) {
                       </ListItemIcon>
                       <ListItemText
                         primary={item.label}
-                        primaryTypographyProps={{
-                          fontWeight: isActive ? 600 : 500,
-                          fontSize: '0.9rem',
-                          color: isActive ? 'primary.main' : 'text.primary',
+                        slotProps={{
+                          primary: {
+                            sx: {
+                              fontWeight: isActive ? 600 : 500,
+                              fontSize: '0.9rem',
+                              color: isActive ? 'primary.main' : 'text.primary',
+                            }
+                          }
                         }}
                       />
                       {/* 徽章 */}

@@ -1,4 +1,5 @@
-import { createTheme, alpha, ThemeOptions } from '@mui/material/styles';
+import { createTheme, alpha } from '@mui/material/styles';
+import type { ThemeOptions } from '@mui/material/styles';
 
 // 品牌配色
 const brandColors = {
@@ -269,33 +270,33 @@ const baseThemeOptions: ThemeOptions = {
     },
     MuiAlert: {
       styleOverrides: {
-        root: {
+        root: ({ theme }) => ({
           borderRadius: 12,
-        },
-        standardSuccess: {
-          backgroundColor: alpha(brandColors.success.main, 0.1),
-          '& .MuiAlert-icon': {
-            color: brandColors.success.main,
+          '&.MuiAlert-standardSuccess': {
+            backgroundColor: alpha(brandColors.success.main, 0.1),
+            '& .MuiAlert-icon': {
+              color: brandColors.success.main,
+            },
           },
-        },
-        standardError: {
-          backgroundColor: alpha(brandColors.error.main, 0.1),
-          '& .MuiAlert-icon': {
-            color: brandColors.error.main,
+          '&.MuiAlert-standardError': {
+            backgroundColor: alpha(brandColors.error.main, 0.1),
+            '& .MuiAlert-icon': {
+              color: brandColors.error.main,
+            },
           },
-        },
-        standardWarning: {
-          backgroundColor: alpha(brandColors.warning.main, 0.1),
-          '& .MuiAlert-icon': {
-            color: brandColors.warning.main,
+          '&.MuiAlert-standardWarning': {
+            backgroundColor: alpha(brandColors.warning.main, 0.1),
+            '& .MuiAlert-icon': {
+              color: brandColors.warning.main,
+            },
           },
-        },
-        standardInfo: {
-          backgroundColor: alpha(brandColors.info.main, 0.1),
-          '& .MuiAlert-icon': {
-            color: brandColors.info.main,
+          '&.MuiAlert-standardInfo': {
+            backgroundColor: alpha(brandColors.info.main, 0.1),
+            '& .MuiAlert-icon': {
+              color: brandColors.info.main,
+            },
           },
-        },
+        }),
       },
     },
     MuiSnackbar: {
@@ -361,7 +362,9 @@ export const lightTheme = createTheme({
     ...baseThemeOptions.components,
     MuiCssBaseline: {
       styleOverrides: {
-        ...baseThemeOptions.components?.MuiCssBaseline?.styleOverrides,
+        ...(typeof baseThemeOptions.components?.MuiCssBaseline?.styleOverrides === 'object' 
+          ? baseThemeOptions.components.MuiCssBaseline.styleOverrides 
+          : {}),
         '::-webkit-scrollbar-track': {
           background: '#F1F5F9',
         },
@@ -448,7 +451,9 @@ export const darkTheme = createTheme({
     ...baseThemeOptions.components,
     MuiCssBaseline: {
       styleOverrides: {
-        ...baseThemeOptions.components?.MuiCssBaseline?.styleOverrides,
+        ...(typeof baseThemeOptions.components?.MuiCssBaseline?.styleOverrides === 'object' 
+          ? baseThemeOptions.components.MuiCssBaseline.styleOverrides 
+          : {}),
         '::-webkit-scrollbar-track': {
           background: '#1E293B',
         },

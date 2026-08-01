@@ -110,6 +110,7 @@ export default function BottomNav({ onMoreClick }: BottomNavProps) {
 
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     const item = config.items[newValue];
+    if (!item) return;
     if (item.key === 'more') {
       onMoreClick?.();
     } else if (item.href) {

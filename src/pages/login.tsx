@@ -459,7 +459,7 @@ export default function Login() {
                                 {account.icon}
                               </Avatar>
                               <Box sx={{ flex: 1 }}>
-                                <Typography variant="subtitle1" fontWeight={600}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                                   {account.displayName}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
@@ -508,8 +508,7 @@ export default function Login() {
         <Typography 
           variant="caption" 
           color="text.secondary" 
-          display="block" 
-          sx={{ mt: 4, textAlign: 'center' }}
+          sx={{ mt: 4, textAlign: 'center', display: 'block' }}
         >
           404 Not Sleep Team © 2026 | 黑客松提案展示系統
         </Typography>

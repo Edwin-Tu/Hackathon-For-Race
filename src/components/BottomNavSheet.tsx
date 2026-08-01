@@ -14,7 +14,8 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import { useRouter } from 'next/router';
 import { getUserRole } from '../utils/auth';
-import { bottomNavRoutes, BottomNavItem } from './BottomNav';
+import { bottomNavRoutes } from './BottomNav';
+import type { BottomNavItem } from './BottomNav';
 
 interface BottomNavSheetProps {
   open: boolean;
@@ -47,11 +48,13 @@ export default function BottomNavSheet({ open, onClose }: BottomNavSheetProps) {
       anchor="bottom"
       open={open}
       onClose={onClose}
-      PaperProps={{
-        sx: {
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          maxHeight: '60vh',
+      slotProps={{
+        paper: {
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '60vh',
+          },
         },
       }}
     >
@@ -69,7 +72,7 @@ export default function BottomNavSheet({ open, onClose }: BottomNavSheetProps) {
 
       {/* 標題 */}
       <Box sx={{ px: 2, pb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={600}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           更多功能
         </Typography>
       </Box>
@@ -106,9 +109,13 @@ export default function BottomNavSheet({ open, onClose }: BottomNavSheetProps) {
               </ListItemIcon>
               <ListItemText
                 primary={item.label}
-                primaryTypographyProps={{
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? 'primary.main' : 'text.primary',
+                slotProps={{
+                  primary: {
+                    sx: {
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? 'primary.main' : 'text.primary',
+                    },
+                  },
                 }}
               />
             </ListItemButton>

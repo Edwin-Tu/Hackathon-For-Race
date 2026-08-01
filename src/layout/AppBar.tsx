@@ -350,8 +350,8 @@ export default function AppBar({ onMenuClick }: AppBarProps) {
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText 
-            primary="設定" 
-            primaryTypographyProps={{ fontWeight: 500 }}
+            primary="設定"
+            slotProps={{ primary: { sx: { fontWeight: 500 } } }}
           />
         </MenuItem>
 
@@ -376,8 +376,8 @@ export default function AppBar({ onMenuClick }: AppBarProps) {
             <LogoutIcon fontSize="small" color="error" />
           </ListItemIcon>
           <ListItemText 
-            primary="登出" 
-            primaryTypographyProps={{ fontWeight: 500 }}
+            primary="登出"
+            slotProps={{ primary: { sx: { fontWeight: 500 } } }}
           />
         </MenuItem>
       </Menu>
@@ -386,8 +386,10 @@ export default function AppBar({ onMenuClick }: AppBarProps) {
       <Dialog 
         open={logoutDialogOpen} 
         onClose={() => setLogoutDialogOpen(false)}
-        PaperProps={{
-          sx: { minWidth: 340 }
+        slotProps={{
+          paper: {
+            sx: { minWidth: 340 }
+          }
         }}
       >
         <DialogTitle sx={{ pb: 1 }}>確認登出</DialogTitle>

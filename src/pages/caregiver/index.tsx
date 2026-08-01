@@ -69,7 +69,7 @@ const statusConfig: Record<ResidentStatus, { label: string; color: 'success' | '
   alert: { label: '需關注', color: 'error' },
 };
 
-const moodConfig: Record<MoodTrend, { label: string; color: 'success' | 'warning' | 'error'; icon: React.ReactNode }> = {
+const moodConfig: Record<MoodTrend, { label: string; color: 'success' | 'warning' | 'error'; icon: React.ReactElement }> = {
   positive: { label: '良好', color: 'success', icon: <TrendingUpIcon /> },
   neutral: { label: '平穩', color: 'warning', icon: <TrendingFlatIcon /> },
   negative: { label: '低落', color: 'error', icon: <TrendingDownIcon /> },
@@ -231,7 +231,7 @@ export default function ResidentList() {
               <PeopleIcon sx={{ fontSize: 28 }} />
             </Avatar>
             <Box>
-              <Typography variant="h4" fontWeight={700}>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 住民列表
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -244,7 +244,7 @@ export default function ResidentList() {
 
       {/* 統計卡片 */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard 
             value={stats.total} 
             label="總住民數" 
@@ -253,7 +253,7 @@ export default function ResidentList() {
             delay={0}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard 
             value={stats.active} 
             label="今日活躍" 
@@ -262,7 +262,7 @@ export default function ResidentList() {
             delay={100}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard 
             value={stats.alerts} 
             label="待處理警示" 
@@ -271,7 +271,7 @@ export default function ResidentList() {
             delay={200}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard 
             value={stats.pendingReminders} 
             label="待執行提醒" 
@@ -347,7 +347,7 @@ export default function ResidentList() {
       {/* 住民卡片 */}
       <Grid container spacing={3}>
         {filteredResidents.length === 0 ? (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Fade in>
               <Paper sx={{ p: 6, textAlign: 'center' }}>
                 <Avatar 
@@ -372,7 +372,7 @@ export default function ResidentList() {
           </Grid>
         ) : (
           filteredResidents.map((resident, index) => (
-            <Grid item xs={12} sm={6} md={4} key={resident.id}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={resident.id}>
               <Grow in timeout={300 + index * 100}>
                 <Card
                   onMouseEnter={() => setHoveredCard(resident.id)}

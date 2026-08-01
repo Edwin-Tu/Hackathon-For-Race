@@ -258,7 +258,7 @@ export default function Assets() {
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <VisibilityOffIcon fontSize="small" color="action" />
-                    <Typography fontWeight="bold">{asset.name}</Typography>
+                    <Typography sx={{ fontWeight: 'bold' }}>{asset.name}</Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
@@ -281,8 +281,8 @@ export default function Assets() {
                 <TableCell>
                   <Chip
                     size="small"
-                    label={riskLevelConfig[asset.riskLevel].label}
-                    color={riskLevelConfig[asset.riskLevel].color}
+                    label={riskLevelConfig[asset.riskLevel]?.label ?? asset.riskLevel}
+                    color={riskLevelConfig[asset.riskLevel]?.color ?? 'default'}
                   />
                 </TableCell>
                 <TableCell>
