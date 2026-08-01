@@ -14,10 +14,12 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import DeleteIcon from '@mui/icons-material/Delete';
 import type { VideoTask, VideoTaskStatus } from '@/types/video';
 
 interface VideoHistoryCardProps {
   task: VideoTask;
+  onDelete?: (taskId: string) => void;
 }
 
 // 狀態標籤文字
@@ -61,7 +63,7 @@ function formatDate(timestamp: number): string {
   });
 }
 
-export function VideoHistoryCard({ task }: VideoHistoryCardProps) {
+export function VideoHistoryCard({ task, onDelete }: VideoHistoryCardProps) {
   const [open, setOpen] = useState(false);
   const isCompleted = task.status === 'COMPLETED';
   const isProcessing = task.status === 'PROCESSING' || task.status === 'PENDING';
@@ -76,9 +78,34 @@ export function VideoHistoryCard({ task }: VideoHistoryCardProps) {
     setOpen(false);
   };
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(task.taskId);
+    }
+  };
+
   return (
     <>
-      <Card sx={{ height: '100%' }}>
+      <Card sx={{ height: '100%', position: 'relative' }}>
+        {/* 刪除按鈕 */}
+        {onDelete && (
+          <IconButton
+            size="small"
+            onClick={handleDelete}
+            sx={{
+              position: 'absolute',
+              top: 4,
+              left: 4,
+              zIndex: 2,
+              bgcolor: 'rgba(0,0,0,0.5)',
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(244,67,54,0.8)' },
+            }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        )}
         <CardActionArea onClick={handleOpen} disabled={!isCompleted || !task.videoUrl}>
           <Box sx={{ height: 120, position: 'relative', bgcolor: 'grey.100' }}>
             {isCompleted && task.videoUrl ? (

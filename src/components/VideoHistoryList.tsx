@@ -2,7 +2,8 @@
 import React from 'react';
 import { Box, Typography, Skeleton } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { useGetVideoHistoryQuery } from '@/store/videoApi';
+import { useGetVideoHistoryQuery, useDeleteVideoTaskMutation, videoApi } from '@/store/videoApi';
+import { useDispatch } from 'react-redux';
 import { VideoHistoryCard } from './VideoHistoryCard';
 
 interface VideoHistoryListProps {
@@ -10,9 +11,24 @@ interface VideoHistoryListProps {
 }
 
 export function VideoHistoryList({ residentId }: VideoHistoryListProps) {
+  const dispatch = useDispatch();
   const { data, isLoading, isError } = useGetVideoHistoryQuery(residentId, {
     skip: !residentId,
   });
+  const [deleteTask] = useDeleteVideoTaskMutation();
+
+  const handleDelete = async (taskId: string) => {
+    if (!confirm('確定要刪除這個影片嗎？')) return;
+    
+    try {
+      await deleteTask(taskId).unwrap();
+      // 刷新歷史列表
+      dispatch(videoApi.util.invalidateTags([{ type: 'VideoTask', id: `history-${residentId}` }]));
+    } catch (error) {
+      console.error('Delete failed:', error);
+      alert('刪除失敗');
+    }
+  };
 
   if (!residentId) return null;
 
@@ -60,7 +76,7 @@ export function VideoHistoryList({ residentId }: VideoHistoryListProps) {
       <Grid container spacing={2}>
         {data.tasks.map((task) => (
           <Grid size={{ xs: 6, sm: 4 }} key={task.taskId}>
-            <VideoHistoryCard task={task} />
+            <VideoHistoryCard task={task} onDelete={handleDelete} />
           </Grid>
         ))}
       </Grid>

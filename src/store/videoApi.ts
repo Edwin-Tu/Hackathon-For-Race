@@ -48,6 +48,17 @@ export const videoApi = createApi({
         { type: 'VideoTask', id: `history-${residentId}` },
       ],
     }),
+
+    // 刪除影片任務
+    deleteVideoTask: builder.mutation<{ success: boolean }, string>({
+      query: (taskId) => ({
+        url: `/tasks/${taskId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, taskId) => [
+        { type: 'VideoTask', id: taskId },
+      ],
+    }),
   }),
 });
 
@@ -56,4 +67,5 @@ export const {
   useGetTaskStatusQuery,
   useGetLatestVideoQuery,
   useGetVideoHistoryQuery,
+  useDeleteVideoTaskMutation,
 } = videoApi;

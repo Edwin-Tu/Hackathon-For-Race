@@ -79,7 +79,7 @@ export const handler = async (event) => {
       const invokeResult = await bedrockClient.send(new StartAsyncInvokeCommand({
         modelId: MODEL_ID,
         modelInput: {
-          prompt: 'The person in the photo stays completely still without moving forward or approaching the camera. Only the mouth opens slightly as if speaking, with natural subtle lip movements. The expression is calm and relaxed. The camera is fixed, the frame is stable, no exaggerated movements.',
+          prompt: 'A static portrait photo. The person remains perfectly still like a photograph. Only the lips move very slightly and naturally as if speaking softly. No head movement, no body movement, no hand movement, no eye blinking, no facial expression changes. The background is completely static. Camera is locked and stable.',
           keyframes: {
             frame0: {
               type: 'image',
