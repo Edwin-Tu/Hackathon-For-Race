@@ -47,7 +47,7 @@ type Importance = 'high' | 'medium' | 'low';
 // 提醒類別
 type ReminderCategory = 'medication' | 'health' | 'appointment' | 'other';
 
-const categoryConfig: Record<ReminderCategory, { label: string; icon: React.ReactNode; color: 'error' | 'success' | 'info' | 'default' }> = {
+const categoryConfig: Record<ReminderCategory, { label: string; icon: React.ReactElement; color: 'error' | 'success' | 'info' | 'default' }> = {
   medication: { label: '用藥', icon: <MedicationIcon />, color: 'error' },
   health: { label: '健康狀況', icon: <FavoriteIcon />, color: 'success' },
   appointment: { label: '回診', icon: <EventIcon />, color: 'info' },
@@ -156,11 +156,48 @@ export default function Reminders() {
   const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editReminder, setEditReminder] = useState<Partial<Reminder>>({});
+  const [categoryFilter, setCategoryFilter] = useState<ReminderCategory | 'all'>('all');
 
   // 依狀態分類
   const pendingReminders = reminders.filter((r) => r.status === 'pending');
   const completedReminders = reminders.filter((r) => r.status === 'completed');
   const missedReminders = reminders.filter((r) => r.status === 'missed');
+
+  // 計算各分頁的類別統計
+  const getCategoryStats = (data: Reminder[]) => {
+    const stats: Record<ReminderCategory, number> = {
+      medication: 0,
+      health: 0,
+      appointment: 0,
+      other: 0,
+    };
+    data.forEach((r) => {
+      stats[r.category]++;
+    });
+    return stats;
+  };
+
+  // 取得當前分頁的資料
+  const getCurrentTabData = () => {
+    switch (tabValue) {
+      case 0: return pendingReminders;
+      case 1: return completedReminders;
+      case 2: return missedReminders;
+      default: return [];
+    }
+  };
+
+  // 套用類別篩選
+  const getFilteredData = (data: Reminder[]) => {
+    if (categoryFilter === 'all') return data;
+    return data.filter((r) => r.category === categoryFilter);
+  };
+
+  const currentTabData = getCurrentTabData();
+  const categoryStats = getCategoryStats(currentTabData);
+  const filteredPendingReminders = getFilteredData(pendingReminders);
+  const filteredCompletedReminders = getFilteredData(completedReminders);
+  const filteredMissedReminders = getFilteredData(missedReminders);
 
   // 標記完成
   const handleComplete = (id: string) => {
@@ -333,26 +370,70 @@ export default function Reminders() {
 
       {/* 分頁標籤 */}
       <Paper sx={{ mb: 2 }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+        <Tabs value={tabValue} onChange={(_, v) => { setTabValue(v); setCategoryFilter('all'); }}>
           <Tab label={`待執行 (${pendingReminders.length})`} />
           <Tab label={`已完成 (${completedReminders.length})`} />
           <Tab label={`已錯過 (${missedReminders.length})`} />
         </Tabs>
       </Paper>
 
+      {/* 類別統計與篩選 */}
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* 類別統計 */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {Object.entries(categoryConfig).map(([key, config]) => {
+              const count = categoryStats[key as ReminderCategory];
+              if (count === 0) return null;
+              return (
+                <Chip
+                  key={key}
+                  size="small"
+                  icon={config.icon}
+                  label={`${config.label} ${count}`}
+                  color={config.color}
+                  variant={categoryFilter === key ? 'filled' : 'outlined'}
+                  onClick={() => setCategoryFilter(categoryFilter === key ? 'all' : key as ReminderCategory)}
+                  sx={{ cursor: 'pointer' }}
+                />
+              );
+            })}
+          </Box>
+          {/* 篩選下拉選單 */}
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <InputLabel>篩選類別</InputLabel>
+            <Select
+              value={categoryFilter}
+              label="篩選類別"
+              onChange={(e) => setCategoryFilter(e.target.value as ReminderCategory | 'all')}
+            >
+              <MenuItem value="all">全部</MenuItem>
+              {Object.entries(categoryConfig).map(([key, config]) => (
+                <MenuItem key={key} value={key}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {config.icon}
+                    {config.label}
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      </Paper>
+
       {/* 提醒列表 */}
       <Paper sx={{ overflow: 'hidden' }}>
         {isMobile ? (
           <>
-            {tabValue === 0 && renderCardList(pendingReminders)}
-            {tabValue === 1 && renderCardList(completedReminders)}
-            {tabValue === 2 && renderCardList(missedReminders)}
+            {tabValue === 0 && renderCardList(filteredPendingReminders)}
+            {tabValue === 1 && renderCardList(filteredCompletedReminders)}
+            {tabValue === 2 && renderCardList(filteredMissedReminders)}
           </>
         ) : (
           <>
-            {tabValue === 0 && renderTable(pendingReminders)}
-            {tabValue === 1 && renderTable(completedReminders)}
-            {tabValue === 2 && renderTable(missedReminders)}
+            {tabValue === 0 && renderTable(filteredPendingReminders)}
+            {tabValue === 1 && renderTable(filteredCompletedReminders)}
+            {tabValue === 2 && renderTable(filteredMissedReminders)}
           </>
         )}
       </Paper>
