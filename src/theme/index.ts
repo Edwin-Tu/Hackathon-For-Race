@@ -584,41 +584,29 @@ export const darkTheme = createTheme({
           '& .MuiAlert-message': {
             color: '#F1F5F9',
           },
-        },
-        standardInfo: {
-          backgroundColor: 'rgba(56, 189, 248, 0.15)',
-          '& .MuiAlert-icon': {
-            color: '#38BDF8',
+          '&.MuiAlert-standardInfo': {
+            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+            '& .MuiAlert-icon': {
+              color: '#38BDF8',
+            },
           },
-          '& .MuiAlert-message': {
-            color: '#F1F5F9',
+          '&.MuiAlert-standardSuccess': {
+            backgroundColor: 'rgba(74, 222, 128, 0.15)',
+            '& .MuiAlert-icon': {
+              color: '#4ADE80',
+            },
           },
-        },
-        standardSuccess: {
-          backgroundColor: 'rgba(74, 222, 128, 0.15)',
-          '& .MuiAlert-icon': {
-            color: '#4ADE80',
+          '&.MuiAlert-standardWarning': {
+            backgroundColor: 'rgba(251, 191, 36, 0.15)',
+            '& .MuiAlert-icon': {
+              color: '#FBBF24',
+            },
           },
-          '& .MuiAlert-message': {
-            color: '#F1F5F9',
-          },
-        },
-        standardWarning: {
-          backgroundColor: 'rgba(251, 191, 36, 0.15)',
-          '& .MuiAlert-icon': {
-            color: '#FBBF24',
-          },
-          '& .MuiAlert-message': {
-            color: '#F1F5F9',
-          },
-        },
-        standardError: {
-          backgroundColor: 'rgba(248, 113, 113, 0.15)',
-          '& .MuiAlert-icon': {
-            color: '#F87171',
-          },
-          '& .MuiAlert-message': {
-            color: '#F1F5F9',
+          '&.MuiAlert-standardError': {
+            backgroundColor: 'rgba(248, 113, 113, 0.15)',
+            '& .MuiAlert-icon': {
+              color: '#F87171',
+            },
           },
         },
       },

@@ -13,7 +13,7 @@ import {
   CardActionArea,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import type { VideoTask, VideoTaskStatus } from '@/types/video';
 
 interface VideoHistoryCardProps {
@@ -90,7 +90,7 @@ export function VideoHistoryCard({ task }: VideoHistoryCardProps) {
                   playsInline
                 />
                 {/* 播放圖示 */}
-                <PlayCircleOutlineIcon
+                <PlayArrowIcon
                   sx={{
                     position: 'absolute',
                     top: '50%',
@@ -138,8 +138,8 @@ export function VideoHistoryCard({ task }: VideoHistoryCardProps) {
         onClose={handleClose}
         maxWidth="md"
         fullWidth
-        PaperProps={{
-          sx: { bgcolor: 'black' },
+        slotProps={{
+          paper: { sx: { bgcolor: 'black' } },
         }}
       >
         <IconButton

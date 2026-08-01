@@ -7,7 +7,7 @@ export interface ActiveTask {
   taskId: string;
 }
 
-interface VideoState {
+export interface VideoState {
   activeTask: ActiveTask | null;
 }
 

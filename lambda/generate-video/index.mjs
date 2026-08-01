@@ -33,6 +33,7 @@ export const handler = async (event) => {
     const familyMemberId = keyParts[2];
 
     // 查找對應的 PENDING 任務
+    console.log(`Querying DynamoDB: residentId=${residentId}, imageKey=${key}`);
     const queryResult = await dynamoClient.send(new QueryCommand({
       TableName: TABLE_NAME,
       IndexName: 'residentId-createdAt-index',
@@ -44,8 +45,9 @@ export const handler = async (event) => {
         ':imageKey': key,
         ':status': 'PENDING',
       },
-      Limit: 1,
+      ScanIndexForward: false, // 從最新的開始查（降序）
     }));
+    console.log(`Query result: ${JSON.stringify(queryResult, null, 2)}`);
 
     if (!queryResult.Items || queryResult.Items.length === 0) {
       console.log('No pending task found for this image');
@@ -62,31 +64,39 @@ export const handler = async (event) => {
       // 呼叫 Bedrock 生成影片
       const videoKey = `videos/${residentId}/${familyMemberId}/${taskId}.mp4`;
       
-      // Bedrock Luma Ray 非同步呼叫
+      // 先從 S3 取得圖片並轉成 base64
+      const getObjectResult = await s3Client.send(new GetObjectCommand({
+        Bucket: IMAGES_BUCKET,
+        Key: key,
+      }));
+      const imageBuffer = await getObjectResult.Body.transformToByteArray();
+      const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+      
+      // 判斷圖片格式
+      const mediaType = key.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      
+      // Bedrock Luma Ray 非同步呼叫（正確的 Image-to-Video 格式）
       const invokeResult = await bedrockClient.send(new StartAsyncInvokeCommand({
         modelId: MODEL_ID,
         modelInput: {
-          taskType: 'IMAGE_TO_VIDEO',
-          imageToVideoParams: {
-            images: [{
-              format: 'jpeg',
+          prompt: 'The person in the photo stays completely still without moving forward or approaching the camera. Only the mouth opens slightly as if speaking, with natural subtle lip movements. The expression is calm and relaxed. The camera is fixed, the frame is stable, no exaggerated movements.',
+          keyframes: {
+            frame0: {
+              type: 'image',
               source: {
-                s3Location: {
-                  uri: `s3://${IMAGES_BUCKET}/${key}`,
-                },
+                type: 'base64',
+                media_type: mediaType,
+                data: imageBase64,
               },
-            }],
-            text: 'gentle natural movement, soft breathing motion, warm family atmosphere, subtle eye blinks, slight head movement',
+            },
           },
-          videoGenerationConfig: {
-            durationSeconds: 5,
-            fps: 24,
-            dimension: '1280x720',
-          },
+          aspect_ratio: '16:9',
+          duration: '5s',
+          resolution: '720p',
         },
         outputDataConfig: {
           s3OutputDataConfig: {
-            s3Uri: `s3://${VIDEOS_BUCKET}/${videoKey}`,
+            s3Uri: `s3://${VIDEOS_BUCKET}/videos/${residentId}/${familyMemberId}/`,
           },
         },
       }));
@@ -112,7 +122,14 @@ export const handler = async (event) => {
         if (statusResult.status === 'Completed') {
           completed = true;
           
-          // 建立影片 URL
+          // 從 Bedrock 回應取得輸出位置
+          const outputUri = statusResult.outputDataConfig?.s3OutputDataConfig?.s3Uri;
+          console.log('Output URI:', outputUri);
+          
+          // Bedrock 會在指定目錄下產生 output.mp4，解析實際路徑
+          // outputUri 格式: s3://bucket/videos/residentId/familyMemberId/randomId
+          const outputPath = outputUri.replace(`s3://${VIDEOS_BUCKET}/`, '');
+          const videoKey = `${outputPath}/output.mp4`;
           const videoUrl = `https://${VIDEOS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${videoKey}`;
           
           // 更新任務為完成
