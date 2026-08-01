@@ -31,7 +31,8 @@ from pydantic import ValidationError
 
 from app.tools.audit import InMemoryAuditStore, extract_argument_names
 from app.tools.enums import RiskLevel, Role, ToolStatus
-from app.tools.handlers import InMemoryCareRepository, ToolHandlers
+from app.repositories import CareRepository, InMemoryCareRepository
+from app.tools.handlers import ToolHandlers
 from app.tools.idempotency import InMemoryIdempotencyStore
 from app.tools.models import AuthContext, ToolCall, ToolResult
 from app.tools.policy import ConfirmationStore, PermissionPolicy, needs_confirmation
@@ -62,7 +63,7 @@ class ToolGateway:
     def __init__(
         self,
         registry: ToolRegistry | None = None,
-        repository: InMemoryCareRepository | None = None,
+        repository: CareRepository | None = None,
         audit_store: InMemoryAuditStore | None = None,
         idempotency_store: InMemoryIdempotencyStore | None = None,
         confirmation_store: ConfirmationStore | None = None,
@@ -645,7 +646,7 @@ class ToolGateway:
         return self._audit
 
     @property
-    def repository(self) -> InMemoryCareRepository:
+    def repository(self) -> CareRepository:
         return self._repository
 
     @property

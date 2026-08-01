@@ -1,7 +1,7 @@
 [project]
 name = "hackathon-for-race"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Secure eldercare Agent with Skills, Tool Gateway, and MySQL persistence"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
     "botocore>=1.43.62",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "mysql-connector-python>=9.0.0",
     "pydantic-settings>=2.14.2",
     "python-dotenv>=1.2.2",
     "uvicorn[standard]>=0.52.0",

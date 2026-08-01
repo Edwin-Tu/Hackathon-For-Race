@@ -1,0 +1,14 @@
+{
+  "name": "hackathon-for-race",
+  "private": true,
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}

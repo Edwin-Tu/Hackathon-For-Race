@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.config import settings
 from app.models import (
     ActionStatus,
     ChatRequest,
@@ -15,6 +16,12 @@ from app.models import (
 )
 from app.providers.base import BaseLLMProvider
 from app.services.intent_router import IntentDecision, RequestedAction, classify_intent
+from app.skills import (
+    SkillContext,
+    SkillRegistry,
+    SkillRoutingResult,
+    create_default_skill_registry,
+)
 from app.tools import (
     AuthContext,
     DemoAuthContextFactory,
@@ -40,35 +47,25 @@ SUCCESS_CLAIMS = (
 
 SYSTEM_PROMPT_TEMPLATE = """你是一個智慧長照生活協助系統。請嚴格遵守以下規則：
 
-目前時間：{current_datetime}
-目前日期：{current_date}
-系統時區：Asia/Taipei
-所有「今天、明天、剛剛、下午、晚上」等相對時間，都必須以上述伺服器時間為基準，不得自行猜測其他年份或日期。
-若使用者只提供「今天下午」等模糊時段而沒有明確時刻，請針對缺少的時刻詢問，不得自行填入固定時間。
+可信任時間：
+- 目前時間：{current_datetime}
+- 目前日期：{current_date}
+- 系統時區：Asia/Taipei
+- 所有「今天、明天、剛剛、下午、晚上」等相對時間，都必須以上述伺服器時間為基準，不得自行猜測其他年份或日期。
+- 若使用者只提供模糊時段而沒有明確時刻，應詢問缺少的資訊，不得自行填入固定時間。
 
-回覆語言與格式：
-- 一律使用繁體中文。
-- 每次回覆限制在二到四句話。
-- 不得使用 Markdown 格式、標題符號、星號粗體、項目符號或程式碼區塊。
-- 不得使用 Emoji 或表情符號。
-- 使用自然、簡單、適合語音朗讀的完整句子。
-
-內容規則：
-- 你的定位是生活協助，包含日常提醒、生活建議與情緒陪伴。
-- 不得提供醫療診斷或藥物調整建議；醫療問題應建議諮詢專業醫療人員。
+全域安全規則：
+- 你的定位是生活協助，不提供醫療診斷、處方或藥物調整建議。
 - 工具請求只是提案，不代表操作已完成。
-- 尚未真的執行工具時，不得宣稱「已記錄」、「已建立提醒」、「已保存」或「已通知照護人員」。
-- 只有工具回傳 success=true、status=succeeded，且寫入工具具有 record_id 時，才能告知使用者寫入操作已完成。
-- 使用者只是詢問功能時，只需簡短說明主要能力。
+- 尚未取得真實 ToolResult 前，不得宣稱已記錄、已建立、已保存或已通知。
+- 只有寫入工具回傳 success=true、status=succeeded 且 record_id 非空時，才能告知使用者寫入完成。
+- 不得要求或自行產生 persona_id、resident_id、requester_id、角色或授權清單。
+- 不得要求未提供的工具，也不得嘗試 SQL、Shell、任意檔案或任意 HTTP 操作。
+- 工具需要確認時，只說明需確認的內容，不得提及確認代碼。
+- 工具失敗或遭拒絕時，應說明尚未完成，不得捏造 record_id。
 
-工具路由規則：
-- 使用者要求「記錄、記下、保存」已發生事件時，只能使用 create_care_event。
-- 使用者要求「提醒我、建立提醒、設定提醒」時，只能使用 create_reminder。
-- 使用者要求「查看、查詢、有什麼行程」時，只能使用 get_user_schedule。
-- get_user_schedule 是唯讀工具，不得用它代替新增或記錄事件。
-- 不得要求或自行產生 persona_id、resident_id 或其他授權欄位。
-- 若工具需要確認，請告知需要確認的內容，但不得提及確認代碼。
-- 若工具執行失敗或被拒絕，請明確說明尚未完成，不得捏造 record_id。
+本回合啟用技能：
+{skill_instructions}
 """
 
 MAX_CONVERSE_ROUNDS = 3
@@ -82,9 +79,11 @@ class AgentService:
         self,
         provider: BaseLLMProvider,
         gateway: ToolGateway | None = None,
+        skill_registry: SkillRegistry | None = None,
     ) -> None:
         self._provider = provider
         self._gateway = gateway or ToolGateway()
+        self._skill_registry = skill_registry or create_default_skill_registry()
 
     def _create_demo_auth_context(
         self,
@@ -93,24 +92,26 @@ class AgentService:
     ) -> AuthContext:
         """Create development-only auth context."""
         return DemoAuthContextFactory.create_resident(
-            requester_id="demo-user",
-            persona_id="demo-persona",
+            requester_id=settings.DEMO_USER_ID,
+            persona_id=settings.DEMO_PERSONA_ID,
             session_id=session_id,
             request_id=request_id,
         )
 
-    def _build_system_prompt(self) -> str:
-        """Build a prompt containing trusted server date/time."""
+    def _build_system_prompt(self, skills: SkillRoutingResult) -> str:
+        """Build a protected prompt from trusted time and selected skills."""
         now = datetime.now(TAIPEI_TZ)
         return SYSTEM_PROMPT_TEMPLATE.format(
             current_datetime=now.isoformat(timespec="seconds"),
             current_date=now.date().isoformat(),
+            skill_instructions=skills.to_prompt_block(),
         )
 
     def _build_tool_configs(
         self,
         auth_context: AuthContext,
         intent: IntentDecision,
+        skills: SkillRoutingResult,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Build initial and follow-up Bedrock toolConfig objects.
 
@@ -119,7 +120,14 @@ class AgentService:
         information. Follow-up rounds remove toolChoice so the model can end
         the turn after receiving toolResult.
         """
-        if intent.expected_tool is None:
+        if intent.expected_tool is None or skills.blocked:
+            return None, None
+        if intent.expected_tool not in skills.allowed_tools:
+            logger.warning(
+                "Skill/tool mismatch: expected=%s allowed=%s",
+                intent.expected_tool,
+                skills.allowed_tools,
+            )
             return None, None
 
         all_specs = self._gateway.get_bedrock_tool_config(auth_context)
@@ -127,6 +135,7 @@ class AgentService:
             item
             for item in all_specs
             if item.get("toolSpec", {}).get("name") == intent.expected_tool
+            and item.get("toolSpec", {}).get("name") in skills.allowed_tools
         ]
         if not filtered:
             return None, None
@@ -223,8 +232,37 @@ class AgentService:
 
         self._gateway.reset_turn_count(request_id)
         intent = classify_intent(request.message)
+        skills = self._skill_registry.route(
+            SkillContext(
+                message=request.message,
+                action=intent.action.value,
+                user_role=auth_context.role.value,
+            )
+        )
+        logger.info(
+            "Enabled skills request_id=%s skills=%s allowed_tools=%s blocked=%s",
+            request_id,
+            skills.selected_skills,
+            skills.allowed_tools,
+            skills.blocked,
+        )
+
+        if skills.blocked:
+            return ChatResponse(
+                success=True,
+                reply=skills.safe_response or "這項請求因安全限制無法處理。",
+                model="",
+                session_id=session_id,
+                usage=UsageInfo(),
+                error_type="SECURITY_POLICY_BLOCK",
+                error_message="請求被安全技能阻擋",
+                operation_completed=False,
+                action_status=ActionStatus.DENIED,
+                tool_events=[],
+            )
+
         initial_tool_config, follow_up_tool_config = self._build_tool_configs(
-            auth_context, intent
+            auth_context, intent, skills
         )
 
         messages: list[dict[str, Any]] = [
@@ -233,7 +271,7 @@ class AgentService:
         total_usage = UsageInfo()
         tools_executed = 0
         tool_events: list[ToolEvent] = []
-        system_prompt = self._build_system_prompt()
+        system_prompt = self._build_system_prompt(skills)
         last_model = ""
 
         for round_num in range(MAX_CONVERSE_ROUNDS):
@@ -497,3 +535,8 @@ class AgentService:
     def gateway(self) -> ToolGateway:
         """Expose gateway for testing."""
         return self._gateway
+
+    @property
+    def skill_registry(self) -> SkillRegistry:
+        """Expose the skill registry for testing and controlled extension."""
+        return self._skill_registry

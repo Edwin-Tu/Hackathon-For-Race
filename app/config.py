@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 
+    # Persistence: memory | mysql | auto
+    CARE_REPOSITORY_BACKEND: str = "auto"
+    DATABASE_URL: str | None = None
+    DATABASE_PING_ON_STARTUP: bool = True
+
+    # Development identity. Production must replace this with JWT/session auth.
+    DEMO_USER_ID: str = "demo-user"
+    DEMO_PERSONA_ID: str = "demo-persona"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
