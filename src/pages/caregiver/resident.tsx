@@ -63,6 +63,38 @@ interface ResidentStats {
   moodTrend: 'positive' | 'neutral' | 'negative';
 }
 
+// 健康資訊類型
+interface HealthInfo {
+  // 生理監測
+  vitals: {
+    bloodPressure?: string;    // 血壓
+    bloodSugar?: number;       // 血糖 mg/dL
+    temperature?: number;      // 體溫
+    pulse?: number;            // 脈搏
+    lastMeasuredAt?: Date;     // 最後量測時間
+  };
+  // 病史與用藥
+  medicalHistory: {
+    chronicConditions: string[];  // 慢性病
+    allergies: string[];          // 過敏史
+    currentMedications: string[]; // 目前用藥
+  };
+  // 生活方式
+  lifestyle: {
+    dietPreference?: string;      // 飲食偏好
+    exerciseRoutine?: string;     // 運動習慣
+    sleepPattern?: string;        // 睡眠模式
+    specialNotes?: string;        // 特殊備註
+  };
+  // 緊急聯絡
+  emergency: {
+    contactName?: string;         // 緊急聯絡人
+    contactPhone?: string;        // 聯絡電話
+    insurance?: string;           // 保險資訊
+    careNotes?: string;           // 照護注意事項
+  };
+}
+
 // 模擬 Persona 資料
 const mockPersonas: Persona[] = [
   {
@@ -108,6 +140,62 @@ const mockStats: Record<string, ResidentStats> = {
     lastMedication: '今天 08:30 心臟藥物',
     lastActivity: '今天 09:00 室內活動',
     moodTrend: 'neutral',
+  },
+};
+
+// 模擬健康資訊資料
+const mockHealthInfo: Record<string, HealthInfo> = {
+  p1: {
+    vitals: {
+      bloodPressure: '125/80 mmHg',
+      bloodSugar: 98,
+      temperature: 36.5,
+      pulse: 72,
+      lastMeasuredAt: new Date('2026-08-01T08:00:00'),
+    },
+    medicalHistory: {
+      chronicConditions: ['高血壓', '輕度糖尿病'],
+      allergies: ['青黴素'],
+      currentMedications: ['降血壓藥 (每日早上)', '血糖控制藥 (每餐前)'],
+    },
+    lifestyle: {
+      dietPreference: '低鈉、低糖飲食',
+      exerciseRoutine: '每日散步 30 分鐘',
+      sleepPattern: '平均 7 小時，偶有失眠',
+      specialNotes: '喜歡溫熱的食物',
+    },
+    emergency: {
+      contactName: '王小明 (兒子)',
+      contactPhone: '0912-345-678',
+      insurance: '全民健保 + 商業醫療險',
+      careNotes: '行動需扶助，使用助行器',
+    },
+  },
+  p2: {
+    vitals: {
+      bloodPressure: '130/85 mmHg',
+      bloodSugar: 105,
+      temperature: 36.3,
+      pulse: 68,
+      lastMeasuredAt: new Date('2026-08-01T08:30:00'),
+    },
+    medicalHistory: {
+      chronicConditions: ['心臟病', '高血壓'],
+      allergies: [],
+      currentMedications: ['心臟藥物 (每日早晚)', '降血壓藥 (每日早上)'],
+    },
+    lifestyle: {
+      dietPreference: '低脂飲食',
+      exerciseRoutine: '室內輕度活動',
+      sleepPattern: '平均 6 小時，午休 1 小時',
+      specialNotes: '避免劇烈運動',
+    },
+    emergency: {
+      contactName: '李小華 (女兒)',
+      contactPhone: '0923-456-789',
+      insurance: '全民健保',
+      careNotes: '心臟病患者，需定期監測',
+    },
   },
 };
 
@@ -317,7 +405,7 @@ export default function ResidentDetail() {
                   <MedicationIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="error" />
                   最近用藥
                 </Typography>
-                <Typography variant="body1" color="text.primary">{currentStats.lastMedication || '無紀錄'}</Typography>
+                <Typography variant="body1">{currentStats.lastMedication || '無紀錄'}</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -328,7 +416,7 @@ export default function ResidentDetail() {
                   <DirectionsWalkIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="success" />
                   最近活動
                 </Typography>
-                <Typography variant="body1" color="text.primary">{currentStats.lastActivity || '無紀錄'}</Typography>
+                <Typography variant="body1">{currentStats.lastActivity || '無紀錄'}</Typography>
               </CardContent>
             </Card>
           </Grid>
