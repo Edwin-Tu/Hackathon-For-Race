@@ -51,34 +51,41 @@ interface Role {
   userCount: number;
 }
 
-// 權限清單
+// 權限清單（對齊 F07 規劃）
 const allPermissions: Permission[] = [
   // 住民資料
-  { key: 'resident:read', label: '查看住民資料', description: '查看住民基本資訊', category: '住民管理' },
-  { key: 'resident:write', label: '編輯住民資料', description: '新增、修改住民資訊', category: '住民管理' },
-  { key: 'resident:delete', label: '刪除住民', description: '刪除住民紀錄', category: '住民管理' },
+  { key: 'resident:read', label: '查看住民資料', description: '查看住民基本資訊', category: '住民資料' },
+  { key: 'resident:write', label: '編輯住民資料', description: '新增、修改住民資訊', category: '住民資料' },
+  { key: 'resident:delete', label: '刪除住民', description: '刪除住民紀錄', category: '住民資料' },
   // 生活事件
-  { key: 'event:read', label: '查看生活事件', description: '查看住民生活事件紀錄', category: '照護紀錄' },
-  { key: 'event:write', label: '建立生活事件', description: '新增生活事件', category: '照護紀錄' },
-  { key: 'event:correct', label: '修正生活事件', description: '修正錯誤的事件紀錄', category: '照護紀錄' },
-  { key: 'event:delete', label: '刪除生活事件', description: '刪除事件紀錄', category: '照護紀錄' },
-  // 提醒
+  { key: 'event:read', label: '查看生活事件', description: '查看住民生活事件紀錄', category: '生活事件' },
+  { key: 'event:write', label: '建立生活事件', description: '新增生活事件', category: '生活事件' },
+  { key: 'event:correct', label: '修正生活事件', description: '修正錯誤的事件紀錄', category: '生活事件' },
+  { key: 'event:delete', label: '刪除生活事件', description: '刪除事件紀錄', category: '生活事件' },
+  // 提醒管理
   { key: 'reminder:read', label: '查看提醒', description: '查看提醒列表', category: '提醒管理' },
   { key: 'reminder:write', label: '建立提醒', description: '新增提醒', category: '提醒管理' },
   { key: 'reminder:delete', label: '刪除提醒', description: '刪除提醒', category: '提醒管理' },
-  // 記憶
+  // 記憶管理
   { key: 'memory:read', label: '查看記憶', description: '查看 AI 記憶', category: '記憶管理' },
   { key: 'memory:correct', label: '修正記憶', description: '修正錯誤記憶', category: '記憶管理' },
   { key: 'memory:delete', label: '刪除記憶', description: '刪除記憶', category: '記憶管理' },
   // 語音互動
-  { key: 'voice:interact', label: '語音互動', description: '使用語音互動功能', category: '語音系統' },
+  { key: 'voice:interact', label: '語音互動', description: '使用語音互動功能', category: '語音互動' },
+  { key: 'voice:session', label: '管理語音 Session', description: '管理語音對話工作階段', category: '語音互動' },
+  // 住民隔離
+  { key: 'privacy:cross_resident', label: '跨住民存取', description: '存取其他住民資料', category: '住民隔離' },
+  { key: 'privacy:sensitive', label: '敏感資料存取', description: '存取敏感個人資料', category: '住民隔離' },
+  // 安全管理
+  { key: 'security:assets', label: '管理資產', description: '管理受保護資產', category: '安全管理' },
+  { key: 'security:policy', label: '編輯政策', description: '編輯安全政策', category: '安全管理' },
+  { key: 'security:audit', label: '查看稽核', description: '查看稽核日誌', category: '安全管理' },
+  { key: 'security:benchmark', label: '執行測試', description: '執行安全基準測試', category: '安全管理' },
   // 系統管理
   { key: 'admin:users', label: '管理使用者', description: '管理系統使用者帳號', category: '系統管理' },
   { key: 'admin:roles', label: '管理角色', description: '管理角色與權限', category: '系統管理' },
-  { key: 'admin:assets', label: '管理資產', description: '管理受保護資產', category: '系統管理' },
-  { key: 'admin:policy', label: '編輯政策', description: '編輯安全政策', category: '系統管理' },
-  { key: 'admin:audit', label: '查看稽核', description: '查看稽核日誌', category: '系統管理' },
-  { key: 'admin:benchmark', label: '執行測試', description: '執行基準測試', category: '系統管理' },
+  { key: 'admin:settings', label: '系統設定', description: '調整系統設定', category: '系統管理' },
+  { key: 'admin:escalate', label: '接收升級', description: '接收升級處理通知', category: '系統管理' },
 ];
 
 // 依類別分組權限
@@ -109,13 +116,9 @@ const mockRoles: Role[] = [
     description: '照護住民的日常管理',
     permissions: [
       'resident:read',
-      'event:read',
-      'event:write',
-      'event:correct',
-      'reminder:read',
-      'reminder:write',
-      'memory:read',
-      'memory:correct',
+      'event:read', 'event:write', 'event:correct', 'event:delete',
+      'reminder:read', 'reminder:write', 'reminder:delete',
+      'memory:read', 'memory:correct',
     ],
     isSystem: true,
     userCount: 15,
