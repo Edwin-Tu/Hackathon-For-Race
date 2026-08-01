@@ -1,0 +1,22 @@
+# 憑證與環境變數（絕對不能推上版本控制）
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+node_modules/
+docs/
