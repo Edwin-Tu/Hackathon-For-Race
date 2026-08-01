@@ -327,7 +327,7 @@ export default function MemoryCorrection() {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{memory.content}</Typography>
+                    <Typography variant="body2" color="text.primary">{memory.content}</Typography>
                     {memory.status === 'corrected' && memory.originalContent !== memory.content && (
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                         <s>原始：{memory.originalContent}</s>
@@ -335,7 +335,7 @@ export default function MemoryCorrection() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontStyle="italic">
+                    <Typography variant="body2" color="text.primary" sx={{ fontStyle: 'italic' }}>
                       「{memory.sourceText}」
                     </Typography>
                   </TableCell>
@@ -355,7 +355,7 @@ export default function MemoryCorrection() {
                         color={memory.status === 'active' ? 'success' : memory.status === 'corrected' ? 'info' : 'error'}
                       />
                       {memory.correctedBy && (
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                           {memory.correctedBy}
                         </Typography>
                       )}

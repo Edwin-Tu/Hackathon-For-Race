@@ -126,7 +126,7 @@ const moodTrendConfig: Record<string, { label: string; color: 'success' | 'warni
 };
 
 export default function ResidentDetail() {
-  const [selectedPersona, setSelectedPersona] = useState<string>(mockPersonas[0].id);
+  const [selectedPersona, setSelectedPersona] = useState<string>(mockPersonas[0]?.id ?? '');
   const [tabValue, setTabValue] = useState(0);
   const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
 
@@ -167,7 +167,7 @@ export default function ResidentDetail() {
       {/* 住民基本資訊卡片 */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Avatar sx={{ width: 80, height: 80, fontSize: 32 }}>
                 {currentPersona.displayName[0]}
@@ -183,33 +183,33 @@ export default function ResidentDetail() {
               </Box>
             </Box>
           </Grid>
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Grid container spacing={2}>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   總事件數
                 </Typography>
                 <Typography variant="h5">{currentStats.totalEvents}</Typography>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   今日事件
                 </Typography>
                 <Typography variant="h5">{currentStats.todayEvents}</Typography>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   待處理提醒
                 </Typography>
                 <Typography variant="h5">{currentStats.pendingReminders}</Typography>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid size={{ xs: 6, sm: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   情緒趨勢
                 </Typography>
                 <Chip
-                  label={moodTrendConfig[currentStats.moodTrend].label}
-                  color={moodTrendConfig[currentStats.moodTrend].color}
+                  label={moodTrendConfig[currentStats.moodTrend]?.label ?? currentStats.moodTrend}
+                  color={moodTrendConfig[currentStats.moodTrend]?.color ?? 'default'}
                 />
               </Grid>
             </Grid>
@@ -230,7 +230,7 @@ export default function ResidentDetail() {
       {/* 個人資料 */}
       {tabValue === 0 && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -245,7 +245,7 @@ export default function ResidentDetail() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -310,29 +310,29 @@ export default function ResidentDetail() {
       {/* 最近動態 */}
       {tabValue === 2 && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   <MedicationIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="error" />
                   最近用藥
                 </Typography>
-                <Typography variant="body1">{currentStats.lastMedication || '無紀錄'}</Typography>
+                <Typography variant="body1" color="text.primary">{currentStats.lastMedication || '無紀錄'}</Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   <DirectionsWalkIcon sx={{ mr: 1, verticalAlign: 'middle' }} color="success" />
                   最近活動
                 </Typography>
-                <Typography variant="body1">{currentStats.lastActivity || '無紀錄'}</Typography>
+                <Typography variant="body1" color="text.primary">{currentStats.lastActivity || '無紀錄'}</Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>

@@ -250,7 +250,7 @@ export default function Alerts() {
 
       {/* 統計卡片 */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light' }}>
             <Typography variant="h3" color="error.dark">
               {activeAlerts.length}
@@ -258,7 +258,7 @@ export default function Alerts() {
             <Typography variant="body2">待處理</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light' }}>
             <Typography variant="h3" color="warning.dark">
               {acknowledgedAlerts.length}
@@ -266,7 +266,7 @@ export default function Alerts() {
             <Typography variant="body2">處理中</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light' }}>
             <Typography variant="h3" color="success.dark">
               {resolvedAlerts.length}
@@ -274,7 +274,7 @@ export default function Alerts() {
             <Typography variant="body2">已解決</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <Paper sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="h3" color="error.main">
               {alerts.filter((a) => a.severity === 'critical' && a.status === 'active').length}
@@ -334,7 +334,7 @@ export default function Alerts() {
       ) : (
         <Grid container spacing={2}>
           {filteredAlerts.map((alert) => (
-            <Grid item xs={12} key={alert.id}>
+            <Grid size={{ xs: 12 }} key={alert.id}>
               <Card
                 sx={{
                   borderLeft: 6,
@@ -369,16 +369,16 @@ export default function Alerts() {
                     </Box>
                   </Box>
 
-                  <Typography variant="body1" sx={{ mb: 2 }}>
+                  <Typography variant="body1" color="text.primary" sx={{ mb: 2 }}>
                     {alert.message}
                   </Typography>
 
                   {alert.sourceText && (
-                    <Paper sx={{ p: 1.5, bgcolor: 'grey.100', mb: 2 }}>
+                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100', mb: 2 }}>
                       <Typography variant="caption" color="text.secondary">
                         原始語句：
                       </Typography>
-                      <Typography variant="body2" fontStyle="italic">
+                      <Typography variant="body2" color="text.primary" sx={{ fontStyle: 'italic' }}>
                         「{alert.sourceText}」
                       </Typography>
                     </Paper>
@@ -462,7 +462,7 @@ export default function Alerts() {
         <DialogContent>
           {selectedAlert && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" fontWeight="bold">
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                 {selectedAlert.title}
               </Typography>
               <Typography variant="body2" color="text.secondary">

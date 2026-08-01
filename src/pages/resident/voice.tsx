@@ -61,7 +61,7 @@ interface ToolCall {
 }
 
 // 工具圖示
-const toolIcons: Record<string, React.ReactNode> = {
+const toolIcons: Record<string, React.ReactElement> = {
   create_care_event: <CheckCircleIcon />,
   create_reminder: <AutoAwesomeIcon />,
   get_user_schedule: <GraphicEqIcon />,
@@ -152,7 +152,7 @@ export default function VoiceInteraction() {
         '今天有什麼事情？',
         '我有點不舒服，想通知照護人員',
       ];
-      const mockText = mockTranscripts[Math.floor(Math.random() * mockTranscripts.length)];
+      const mockText = mockTranscripts[Math.floor(Math.random() * mockTranscripts.length)] ?? '';
 
       setTranscript(mockText);
 
@@ -273,7 +273,7 @@ export default function VoiceInteraction() {
               <SmartToyIcon sx={{ fontSize: 28 }} />
             </Avatar>
             <Box>
-              <Typography variant="h4" fontWeight={700}>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 語音互動
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -350,7 +350,7 @@ export default function VoiceInteraction() {
                         : '0 2px 8px rgba(0,0,0,0.08)',
                     }}
                   >
-                    <Typography variant="body1" sx={{ lineHeight: 1.7 }}>
+                    <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.7 }}>
                       {msg.content}
                     </Typography>
 
@@ -413,7 +413,7 @@ export default function VoiceInteraction() {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 {isProcessing && <CircularProgress size={20} color="info" />}
-                <Typography variant="body2" color="info.main" fontWeight={500}>
+                <Typography variant="body2" color="info.main" sx={{ fontWeight: 500 }}>
                   {transcript || '處理中...'}
                 </Typography>
               </Box>
