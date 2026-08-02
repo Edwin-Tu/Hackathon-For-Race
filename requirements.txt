@@ -1,5 +1,5 @@
-boto3>=1.34.0
-botocore>=1.34.0
-python-dotenv>=1.0.0
-prisma>=0.15.0
-pytest>=8.0.0
+accelerate==1.14.0
+librosa==0.11.0
+soundfile==0.14.0
+torch==2.13.0
+transformers==5.14.1

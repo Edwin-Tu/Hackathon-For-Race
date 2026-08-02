@@ -44,3 +44,13 @@ desktop.ini
 # Package manager locks (保留 package-lock.json，忽略其他)
 yarn.lock
 pnpm-lock.yaml
+
+.venv/
+.env
+__pycache__/
+*.pyc
+*.mp3
+*.wav
+*.m4a
+results_*.csv
+taigi_test.wav
