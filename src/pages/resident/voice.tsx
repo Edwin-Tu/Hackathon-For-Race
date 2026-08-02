@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -14,6 +14,7 @@ import {
   Fade,
   Grow,
   LinearProgress,
+  Skeleton,
 } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import MicIcon from '@mui/icons-material/Mic';
@@ -26,6 +27,7 @@ import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { useGetLatestVideoQuery } from '@/store/videoApi';
 
 // 動畫定義
 const ripple = keyframes`
@@ -70,6 +72,15 @@ const toolIcons: Record<string, React.ReactElement> = {
 
 export default function VoiceInteraction() {
   const theme = useTheme();
+  
+  // 取得住民 ID（從 JWT 或 URL 參數）
+  const residentId = 'resident-001'; // TODO: 從 auth context 取得
+  
+  // 取得最新動圖
+  const { data: latestVideo, isLoading: videoLoading } = useGetLatestVideoQuery(residentId);
+  
+  // 影片播放 ref
+  const videoRef = useRef<HTMLVideoElement>(null);
   
   // 錄音狀態
   const [isRecording, setIsRecording] = useState(false);
@@ -259,28 +270,93 @@ export default function VoiceInteraction() {
 
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
-      {/* 頁面標題 */}
+      {/* 動圖顯示區域 */}
       <Fade in timeout={300}>
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-            <Avatar 
-              sx={{ 
-                bgcolor: theme.palette.primary.main,
-                width: 48,
-                height: 48,
+        <Box 
+          sx={{ 
+            mb: 3, 
+            display: 'flex', 
+            justifyContent: 'center',
+            position: 'relative',
+          }}
+        >
+          {videoLoading ? (
+            <Skeleton 
+              variant="rounded" 
+              width={280} 
+              height={280} 
+              sx={{ borderRadius: '50%' }}
+            />
+          ) : latestVideo?.videoUrl ? (
+            <Box
+              sx={{
+                position: 'relative',
+                width: 280,
+                height: 280,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                boxShadow: isSpeaking 
+                  ? `0 0 40px ${alpha(theme.palette.primary.main, 0.5)}`
+                  : `0 8px 32px ${alpha(theme.palette.common.black, 0.15)}`,
+                border: `4px solid ${isSpeaking ? theme.palette.primary.main : theme.palette.divider}`,
+                transition: 'all 0.3s ease',
               }}
             >
-              <SmartToyIcon sx={{ fontSize: 28 }} />
-            </Avatar>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                語音互動
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                按下麥克風按鈕開始說話，系統會記錄您的生活事件並回覆
-              </Typography>
+              <video
+                ref={videoRef}
+                src={latestVideo.videoUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+              {/* 說話時的動畫光環 */}
+              {isSpeaking && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: -4,
+                    left: -4,
+                    right: -4,
+                    bottom: -4,
+                    borderRadius: '50%',
+                    border: `3px solid ${theme.palette.primary.main}`,
+                    animation: `${pulse} 1s ease-in-out infinite`,
+                  }}
+                />
+              )}
             </Box>
-          </Box>
+          ) : (
+            <Avatar
+              sx={{
+                width: 280,
+                height: 280,
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                color: theme.palette.primary.main,
+                fontSize: 120,
+                boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.1)}`,
+              }}
+            >
+              <SmartToyIcon sx={{ fontSize: 120 }} />
+            </Avatar>
+          )}
+        </Box>
+      </Fade>
+
+      {/* 頁面標題 */}
+      <Fade in timeout={300}>
+        <Box sx={{ mb: 3, textAlign: 'center' }}>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            語音互動
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            按下麥克風按鈕開始說話，系統會記錄您的生活事件並回覆
+          </Typography>
         </Box>
       </Fade>
 
@@ -304,7 +380,7 @@ export default function VoiceInteraction() {
       <Grow in timeout={400}>
         <Paper
           sx={{
-            height: '50vh',
+            height: '35vh',
             overflow: 'auto',
             p: 3,
             mb: 3,
