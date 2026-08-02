@@ -13,8 +13,10 @@ import json
 import secrets
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
+from app.repositories import CareRepository, PendingToolConfirmation
 from app.tools.enums import EventType, Importance, Role
 from app.tools.models import AuthContext, ToolCall
 
@@ -43,13 +45,18 @@ class PendingConfirmation:
 
 
 class ConfirmationStore:
-    """In-memory pending-confirmation store with identity/session binding."""
+    """Pending-confirmation store with optional durable repository backing."""
 
     DEFAULT_TTL_SECONDS = 300  # 5 minutes
 
-    def __init__(self, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> None:
+    def __init__(
+        self,
+        ttl_seconds: int = DEFAULT_TTL_SECONDS,
+        repository: CareRepository | None = None,
+    ) -> None:
         self._store: dict[str, PendingConfirmation] = {}
         self._ttl_seconds = ttl_seconds
+        self._repository = repository
 
     @staticmethod
     def _arguments_hash(validated_args: dict[str, Any]) -> str:
@@ -61,6 +68,39 @@ class ConfirmationStore:
             default=str,
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _token_hash(token: str) -> str:
+        if token.startswith("hash:"):
+            return token.removeprefix("hash:")
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _to_timestamp(value: datetime) -> float:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.timestamp()
+
+    @classmethod
+    def _from_record(cls, record: PendingToolConfirmation) -> PendingConfirmation:
+        return PendingConfirmation(
+            token=f"hash:{record.token_hash}",
+            request_id=record.request_id,
+            session_id=record.session_id,
+            requester_id=record.requester_id,
+            role=record.role,
+            tool_call=ToolCall(
+                tool_call_id=record.tool_call_id,
+                name=record.tool_name,
+                arguments=record.arguments,
+            ),
+            target_persona_id=record.target_persona_id,
+            arguments_hash=record.arguments_hash,
+            created_at=cls._to_timestamp(record.created_at),
+            expires_at=cls._to_timestamp(record.expires_at),
+            summary=record.summary,
+            consumed=record.consumed,
+        )
 
     def create(
         self,
@@ -89,20 +129,49 @@ class ConfirmationStore:
 
         token = secrets.token_urlsafe(32)
         now = time.time()
-        self._store[token] = PendingConfirmation(
+        frozen_tool_call = ToolCall(
+            tool_call_id=tool_call.tool_call_id,
+            name=tool_call.name,
+            arguments=dict(validated_args),
+        )
+        pending = PendingConfirmation(
             token=token,
             request_id=request_id,
             session_id=session_id,
             requester_id=requester_id,
             role=role,
-            tool_call=tool_call,
+            tool_call=frozen_tool_call,
             target_persona_id=target_persona_id,
-            arguments_hash=self._arguments_hash(validated_args),
+            arguments_hash=self._arguments_hash(frozen_tool_call.arguments),
             created_at=now,
             expires_at=now + self._ttl_seconds,
             summary=summary,
             consumed=False,
         )
+        if self._repository is None:
+            self._store[token] = pending
+        else:
+            self._repository.create_pending_confirmation(
+                PendingToolConfirmation(
+                    token_hash=self._token_hash(token),
+                    request_id=request_id,
+                    session_id=session_id,
+                    requester_id=requester_id,
+                    role=role,
+                    tool_call_id=tool_call.tool_call_id,
+                    tool_name=tool_call.name,
+                    arguments=dict(validated_args),
+                    target_persona_id=target_persona_id,
+                    arguments_hash=pending.arguments_hash,
+                    summary=summary,
+                    created_at=datetime.fromtimestamp(now, tz=timezone.utc),
+                    expires_at=datetime.fromtimestamp(
+                        now + self._ttl_seconds,
+                        tz=timezone.utc,
+                    ),
+                    consumed=False,
+                )
+            )
         return token
 
     def _validate_identity(
@@ -124,15 +193,25 @@ class ConfirmationStore:
         auth_context: AuthContext,
     ) -> tuple[PendingConfirmation | None, str]:
         """Resolve a token without consuming it."""
-        self._cleanup_expired()
-        pending = self._store.get(token)
+        if self._repository is None:
+            self._cleanup_expired()
+            pending = self._store.get(token)
+        else:
+            record = self._repository.get_pending_confirmation(
+                token_hash=self._token_hash(token)
+            )
+            pending = self._from_record(record) if record is not None else None
         if pending is None:
             return None, "確認代碼無效或已過期"
         if pending.consumed:
             return None, "確認代碼已使用"
         if time.time() > pending.expires_at:
-            del self._store[token]
+            self.consume(token, response_text="expired")
             return None, "確認代碼已過期，請重新操作"
+
+        if self._arguments_hash(pending.tool_call.arguments) != pending.arguments_hash:
+            self.consume(token, response_text="integrity_failed")
+            return None, "確認資料完整性驗證失敗，請重新操作"
 
         identity_error = self._validate_identity(pending, auth_context)
         if identity_error:
@@ -144,23 +223,46 @@ class ConfirmationStore:
         auth_context: AuthContext,
     ) -> tuple[PendingConfirmation | None, str]:
         """Find the single pending action for a trusted session/user context."""
-        self._cleanup_expired()
-        matches = [
-            pending
-            for pending in self._store.values()
-            if not pending.consumed
-            and pending.session_id == auth_context.session_id
-            and pending.requester_id == auth_context.requester_id
-            and pending.role == auth_context.role.value
-        ]
+        if self._repository is None:
+            self._cleanup_expired()
+            matches = [
+                pending
+                for pending in self._store.values()
+                if not pending.consumed
+                and pending.session_id == auth_context.session_id
+                and pending.requester_id == auth_context.requester_id
+                and pending.role == auth_context.role.value
+            ]
+        else:
+            records = self._repository.get_pending_confirmation_for_context(
+                session_id=auth_context.session_id,
+                requester_id=auth_context.requester_id,
+                role=auth_context.role.value,
+            )
+            matches = []
+            now = time.time()
+            for record in records:
+                pending = self._from_record(record)
+                if now > pending.expires_at:
+                    self.consume(pending.token, response_text="expired")
+                    continue
+                if self._arguments_hash(pending.tool_call.arguments) != pending.arguments_hash:
+                    self.consume(pending.token, response_text="integrity_failed")
+                    continue
+                matches.append(pending)
         if not matches:
             return None, "目前沒有待確認操作"
         if len(matches) > 1:
             return None, "目前有多筆待確認操作，請使用畫面上的確認按鈕"
         return matches[0], ""
 
-    def consume(self, token: str) -> bool:
+    def consume(self, token: str, *, response_text: str = "confirmed") -> bool:
         """Remove one token so it cannot be reused."""
+        if self._repository is not None:
+            return self._repository.consume_pending_confirmation(
+                token_hash=self._token_hash(token),
+                response_text=response_text,
+            )
         pending = self._store.get(token)
         if pending is None:
             return False
@@ -177,7 +279,8 @@ class ConfirmationStore:
         pending, error = self.get_pending(token, auth_context)
         if pending is None:
             return None, error
-        self.consume(token)
+        if not self.consume(token, response_text="cancelled"):
+            return None, "確認代碼已使用"
         return pending, ""
 
     def _cleanup_expired(self) -> None:

@@ -24,12 +24,13 @@ import concurrent.futures
 import logging
 import time
 import uuid
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import ValidationError
 
-from app.tools.audit import InMemoryAuditStore, extract_argument_names
+from app.tools.audit import InMemoryAuditStore, RepositoryAuditStore, extract_argument_names
 from app.tools.enums import RiskLevel, Role, ToolStatus
 from app.repositories import CareRepository, InMemoryCareRepository
 from app.tools.handlers import ToolHandlers
@@ -70,11 +71,17 @@ class ToolGateway:
     ) -> None:
         self._registry = registry or create_default_registry()
         self._repository = repository or InMemoryCareRepository()
-        self._audit = audit_store or InMemoryAuditStore()
+        self._audit = audit_store or RepositoryAuditStore(self._repository)
         self._idempotency = idempotency_store or InMemoryIdempotencyStore()
-        self._confirmation = confirmation_store or ConfirmationStore()
+        self._confirmation = confirmation_store or ConfirmationStore(
+            repository=(
+                None
+                if isinstance(self._repository, InMemoryCareRepository)
+                else self._repository
+            )
+        )
         self._handlers = ToolHandlers(self._repository)
-        self._turn_tool_counts: dict[str, int] = {}
+        self._turn_tool_counts: OrderedDict[str, int] = OrderedDict()
 
         # Wire up handlers in registry
         self._setup_handlers()
@@ -125,6 +132,11 @@ class ToolGateway:
         self._turn_tool_counts[request_id] = (
             self._turn_tool_counts.get(request_id, 0) + 1
         )
+        self._turn_tool_counts.move_to_end(request_id)
+        # request_id values are unique per turn. Keep the defensive gateway
+        # limiter bounded even if a caller forgets to release completed turns.
+        while len(self._turn_tool_counts) > 4096:
+            self._turn_tool_counts.popitem(last=False)
 
     def reset_turn_count(self, request_id: str) -> None:
         """Reset turn count (call at start of new turn)."""
@@ -435,17 +447,25 @@ class ToolGateway:
         
         Raises TimeoutError if execution exceeds timeout.
         """
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                handler,
-                validated_args=validated_args,
-                target_persona_id=target_persona_id,
-                requester_id=requester_id,
-            )
-            try:
-                return future.result(timeout=timeout_seconds)
-            except concurrent.futures.TimeoutError:
-                raise TimeoutError(f"Handler execution exceeded {timeout_seconds}s")
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            handler,
+            validated_args=validated_args,
+            target_persona_id=target_persona_id,
+            requester_id=requester_id,
+        )
+        try:
+            return future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError(
+                f"Handler execution exceeded {timeout_seconds}s"
+            ) from exc
+        finally:
+            # ThreadPoolExecutor.__exit__ waits for the worker and defeats the
+            # HTTP timeout. Do not block the request after the deadline. DB
+            # connection timeouts and durable idempotency limit late effects.
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
     def get_pending_confirmation(
@@ -526,7 +546,18 @@ class ToolGateway:
         target_persona_id = pending.target_persona_id
 
         # Consume the token (single-use)
-        self._confirmation.consume(confirmation_token)
+        if not self._confirmation.consume(
+            confirmation_token,
+            response_text="confirmed",
+        ):
+            return self._deny(
+                tool_call,
+                started_at,
+                "INVALID_CONFIRMATION",
+                "確認代碼已使用",
+                auth_context,
+                target_persona_id,
+            )
 
         # Now execute the stored tool call
         tool_def = self._registry.get(tool_call.name)

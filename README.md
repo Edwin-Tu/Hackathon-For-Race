@@ -363,3 +363,7 @@ scripts/cloud/deploy.sh
 The Agent now persists safe conversation turns to `sessions` and `interactions`, then reloads the most recent messages for the same trusted `user_id + persona_id + session_id` scope before calling Bedrock. The validation UI keeps its Session ID in `sessionStorage`, so a page refresh does not silently start a new conversation.
 
 See `CONVERSATION_HISTORY_FIX.md` for security boundaries and deployment verification.
+
+## 中文＋台語雙語整合
+
+本版本包含 Edwin-Tu-2 長者 UI、Whisper 中文 ASR、Breeze-ASR-26 台語 ASR，以及「Agent 原回覆 → 完整台語翻譯 → 台語 TTS」輸出鏈路。完整啟動、驗證與雲端限制請見 [`BILINGUAL_VOICE_INTEGRATION.md`](BILINGUAL_VOICE_INTEGRATION.md)。

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import secrets
 import uuid
@@ -27,6 +28,8 @@ from app.models import (
     SpeechDeliveryTrace,
     TranscriptionResponse,
     TranscriptionTrace,
+    VoiceConfirmationRequest,
+    VoiceReplyResponse,
     VoiceTurnResponse,
 )
 from app.output import (
@@ -35,6 +38,12 @@ from app.output import (
     OutputEnvelope,
     OutputEventStore,
     StoreOutputAdapter,
+)
+from app.breeze_asr_service import BreezeASRService
+from app.hybrid_asr_service import (
+    HybridASRService,
+    is_taiwanese_language,
+    normalize_voice_language,
 )
 from app.providers.bedrock import BedrockProvider
 from app.reminders import (
@@ -46,6 +55,12 @@ from app.reminders import (
 from app.repositories import create_care_repository
 from app.security import AgentInputGuard
 from app.services.agent_service import AgentService
+from app.taiwanese_speech import (
+    TaiwaneseReplyTranslator,
+    TaiwaneseTTSService,
+    TaiwaneseTranslationError,
+    TaiwaneseTTSUnavailableError,
+)
 from app.tools import DemoAuthContextFactory, ToolGateway
 from app.whisper_service import (
     EmptyTranscriptionError,
@@ -100,7 +115,7 @@ reminder_scheduler = ReminderScheduler(
     missed_after_seconds=settings.REMINDER_MISSED_AFTER_SECONDS,
     stale_claim_seconds=settings.REMINDER_STALE_CLAIM_SECONDS,
 )
-whisper_service = WhisperService(
+mandarin_whisper_service = WhisperService(
     enabled=settings.WHISPER_ENABLED,
     model_size=settings.WHISPER_MODEL_SIZE,
     device=settings.WHISPER_DEVICE,
@@ -108,6 +123,27 @@ whisper_service = WhisperService(
     download_root=settings.WHISPER_DOWNLOAD_ROOT,
     beam_size=settings.WHISPER_BEAM_SIZE,
     vad_filter=settings.WHISPER_VAD_FILTER,
+)
+breeze_asr_service = BreezeASRService(
+    enabled=settings.BREEZE_ASR_ENABLED,
+    model_id=settings.BREEZE_ASR_MODEL_ID,
+    device=settings.BREEZE_ASR_DEVICE,
+)
+# Keep the historical variable name for existing integrations/tests. It now
+# routes Mandarin and Taiwanese requests to the correct ASR provider.
+whisper_service = HybridASRService(
+    whisper=mandarin_whisper_service,
+    breeze=breeze_asr_service,
+    mode=settings.ASR_MODE,
+    auto_primary=settings.ASR_AUTO_PRIMARY,
+    fallback_enabled=settings.ASR_FALLBACK_ENABLED,
+)
+taiwanese_reply_translator = TaiwaneseReplyTranslator(provider)
+taiwanese_tts_service = TaiwaneseTTSService(
+    enabled=settings.TAIWANESE_TTS_ENABLED,
+    model_id=settings.TAIWANESE_TTS_MODEL_ID,
+    device=settings.TAIWANESE_TTS_DEVICE,
+    max_chars=settings.TAIWANESE_TTS_MAX_CHARS,
 )
 
 
@@ -124,8 +160,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="智慧長照語音 Agent",
-    description="Input Guard、Agent、Tool Gateway、MySQL/RDS、Whisper 與提醒輸出 API",
-    version="0.7.0",
+    description="Input Guard、Agent、Tool Gateway、MySQL/RDS、中文/台語 ASR 與雙語語音輸出 API",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -196,6 +232,9 @@ async def health_check() -> HealthResponse:
         api_auth_required=settings.API_AUTH_ENABLED,
         repository_backend=settings.CARE_REPOSITORY_BACKEND,
         event_table=getattr(repository, "event_table", "memory"),
+        asr_mode=settings.ASR_MODE,
+        breeze_asr_enabled=settings.BREEZE_ASR_ENABLED,
+        taiwanese_tts_enabled=settings.TAIWANESE_TTS_ENABLED,
     )
 
 
@@ -258,7 +297,7 @@ async def voice_turn(
     confirmation_token: str | None = Form(None),
     language: str | None = Form(None),
 ) -> VoiceTurnResponse:
-    """Transcribe audio, then run the normal guarded Agent pipeline."""
+    """Transcribe Mandarin/Taiwanese audio and run the guarded Agent pipeline."""
     transcription = await _transcribe_upload(audio, language=language)
     agent_response = await agent_service.chat(
         ChatRequest(
@@ -269,35 +308,162 @@ async def voice_turn(
         )
     )
 
-    speech_delivery = None
+    input_language = _resolved_input_language(language, transcription)
+    translated_reply, reply_language, speech_delivery = await _prepare_voice_reply(
+        agent_response=agent_response,
+        input_language=input_language,
+    )
+    spoken_text = translated_reply or agent_response.reply
+
     if agent_response.reply:
         output_store.append(
             OutputEnvelope(
                 event_type="agent.reply",
                 persona_id=settings.DEMO_PERSONA_ID,
-                display_text=agent_response.reply,
-                speech_text=agent_response.reply,
+                display_text=translated_reply or agent_response.reply,
+                speech_text=spoken_text,
                 session_id=agent_response.session_id,
-                metadata={"source": "voice_turn"},
+                metadata={
+                    "source": "voice_turn",
+                    "input_language": input_language,
+                    "reply_language": reply_language,
+                    "asr_provider": transcription.provider,
+                },
             )
         )
-        if settings.VOICE_TURN_LOCAL_TTS_ENABLED:
-            result = await asyncio.to_thread(
-                local_speech_player.speak,
-                agent_response.reply,
-            )
-            speech_delivery = SpeechDeliveryTrace(
-                ok=result.ok,
-                backend=result.backend,
-                error=result.error,
-            )
 
     return VoiceTurnResponse(
         transcript=transcription.text,
         trace=_trace_from_transcription(transcription),
         agent=agent_response,
+        input_language=input_language,
+        reply_language=reply_language,
+        translated_reply=translated_reply,
         speech_delivery=speech_delivery,
     )
+
+
+@app.post("/api/voice/confirm", response_model=VoiceReplyResponse)
+async def voice_confirm(request: VoiceConfirmationRequest) -> VoiceReplyResponse:
+    """Confirm/cancel a pending voice ToolCall and preserve the reply language."""
+    agent_response = await agent_service.confirm(
+        ConfirmationRequest(
+            session_id=request.session_id,
+            confirmation_token=request.confirmation_token,
+            decision=request.decision,
+        )
+    )
+    input_language = normalize_voice_language(request.language)
+    translated_reply, reply_language, speech_delivery = await _prepare_voice_reply(
+        agent_response=agent_response,
+        input_language=input_language,
+    )
+    return VoiceReplyResponse(
+        agent=agent_response,
+        reply_language=reply_language,
+        translated_reply=translated_reply,
+        speech_delivery=speech_delivery,
+    )
+
+
+async def _prepare_voice_reply(
+    *,
+    agent_response: ChatResponse,
+    input_language: str,
+) -> tuple[str | None, str, SpeechDeliveryTrace | None]:
+    if not agent_response.reply:
+        return None, "nan-TW" if is_taiwanese_language(input_language) else "zh-TW", None
+
+    if is_taiwanese_language(input_language):
+        translated_reply: str | None = None
+        tts_text: str | None = None
+        translation_error: str | None = None
+        if settings.TAIWANESE_REPLY_TRANSLATION_ENABLED:
+            try:
+                translation = await taiwanese_reply_translator.translate(agent_response.reply)
+                translated_reply = translation.display_text
+                tts_text = translation.tts_text
+            except TaiwaneseTranslationError as exc:
+                translation_error = str(exc)
+                logger.warning("Taiwanese reply translation failed: %s", exc)
+
+        if translated_reply and tts_text and settings.TAIWANESE_TTS_ENABLED:
+            try:
+                speech = await taiwanese_tts_service.synthesize(tts_text)
+                if len(speech.audio_bytes) > settings.MAX_TTS_AUDIO_BYTES:
+                    raise TaiwaneseTTSUnavailableError("台語 TTS 音訊超過大小上限")
+                return (
+                    translated_reply,
+                    "nan-TW",
+                    SpeechDeliveryTrace(
+                        ok=True,
+                        backend=f"mms_tts:{speech.model}",
+                        language="nan-TW",
+                        spoken_text=translated_reply,
+                        audio_base64=base64.b64encode(speech.audio_bytes).decode("ascii"),
+                        content_type=speech.content_type,
+                        sample_rate_hz=speech.sample_rate_hz,
+                    ),
+                )
+            except TaiwaneseTTSUnavailableError as exc:
+                logger.warning("Taiwanese TTS failed: %s", exc)
+                return (
+                    translated_reply,
+                    "nan-TW",
+                    SpeechDeliveryTrace(
+                        ok=False,
+                        backend="taiwanese_tts_unavailable",
+                        error=str(exc),
+                        language="nan-TW",
+                        spoken_text=translated_reply,
+                    ),
+                )
+
+        if translated_reply:
+            return (
+                translated_reply,
+                "nan-TW",
+                SpeechDeliveryTrace(
+                    ok=False,
+                    backend="taiwanese_tts_disabled",
+                    error="台語 TTS 尚未啟用",
+                    language="nan-TW",
+                    spoken_text=translated_reply,
+                ),
+            )
+
+        # Translation failure is non-fatal: keep the Agent reply and allow the
+        # client to use its Mandarin fallback instead of fabricating Taiwanese.
+        return (
+            None,
+            "zh-TW",
+            SpeechDeliveryTrace(
+                ok=False,
+                backend="taiwanese_translation_failed",
+                error=translation_error or "台語翻譯未啟用",
+                language="zh-TW",
+                spoken_text=agent_response.reply,
+            ),
+        )
+
+    speech_delivery = None
+    if settings.VOICE_TURN_LOCAL_TTS_ENABLED:
+        result = await asyncio.to_thread(local_speech_player.speak, agent_response.reply)
+        speech_delivery = SpeechDeliveryTrace(
+            ok=result.ok,
+            backend=result.backend,
+            error=result.error,
+            language="zh-TW",
+            spoken_text=agent_response.reply,
+        )
+    return None, "zh-TW", speech_delivery
+
+
+def _resolved_input_language(language: str | None, transcription) -> str:
+    requested = normalize_voice_language(language or transcription.requested_language)
+    if requested != "auto":
+        return requested
+    return normalize_voice_language(transcription.language)
 
 
 @app.get("/api/reminders/status")
@@ -333,11 +499,17 @@ async def reminder_run_once() -> ReminderRunResponse:
 async def output_events(
     after_id: int | None = Query(None, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    session_id: str | None = Query(None, min_length=1, max_length=191),
 ) -> list[OutputEventResponse]:
-    """Poll reminder output events until a UI/WebSocket adapter is connected."""
+    """Poll only events inside the current trusted demo persona/session scope."""
     return [
         OutputEventResponse(**event.to_dict())
-        for event in output_store.list(after_id=after_id, limit=limit)
+        for event in output_store.list(
+            after_id=after_id,
+            limit=limit,
+            persona_ids={settings.DEMO_PERSONA_ID},
+            session_id=session_id,
+        )
     ]
 
 
@@ -384,6 +556,8 @@ async def _transcribe_upload(audio: UploadFile, *, language: str | None):
 def _trace_from_transcription(transcription) -> TranscriptionTrace:
     return TranscriptionTrace(
         model=transcription.model,
+        provider=transcription.provider,
+        requested_language=transcription.requested_language,
         language=transcription.language,
         language_probability=transcription.language_probability,
         duration_seconds=transcription.duration_seconds,

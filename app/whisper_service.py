@@ -36,6 +36,8 @@ class WhisperTranscription:
     duration_after_vad_seconds: float | None
     segment_count: int
     model: str
+    provider: str = "faster_whisper"
+    requested_language: str | None = None
 
 
 ModelFactory = Callable[..., Any]

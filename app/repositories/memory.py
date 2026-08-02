@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from app.repositories.base import (
     CareEvent,
     ConversationMessage,
+    PendingToolConfirmation,
     Reminder,
     ScheduleItem,
     SessionScopeError,
@@ -26,6 +27,8 @@ class InMemoryCareRepository:
         self._reminder_idempotency: dict[tuple[str, str], str] = {}
         self._conversation_sessions: dict[str, tuple[str, str]] = {}
         self._conversation_messages: list[tuple[str, str, str, ConversationMessage]] = []
+        self._pending_confirmations: dict[str, PendingToolConfirmation] = {}
+        self._audit_logs: list[dict[str, object]] = []
         self._lock = threading.RLock()
 
     def create_care_event(
@@ -295,6 +298,103 @@ class InMemoryCareRepository:
             chars += size
         return list(reversed(selected))
 
+    def create_pending_confirmation(
+        self,
+        confirmation: PendingToolConfirmation,
+    ) -> None:
+        with self._lock:
+            for token_hash, existing in list(self._pending_confirmations.items()):
+                if (
+                    not existing.consumed
+                    and existing.session_id == confirmation.session_id
+                    and existing.requester_id == confirmation.requester_id
+                ):
+                    del self._pending_confirmations[token_hash]
+            self._pending_confirmations[confirmation.token_hash] = confirmation
+
+    def get_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+    ) -> PendingToolConfirmation | None:
+        with self._lock:
+            return self._pending_confirmations.get(token_hash)
+
+    def get_pending_confirmation_for_context(
+        self,
+        *,
+        session_id: str,
+        requester_id: str,
+        role: str,
+    ) -> list[PendingToolConfirmation]:
+        with self._lock:
+            return [
+                item
+                for item in self._pending_confirmations.values()
+                if not item.consumed
+                and item.session_id == session_id
+                and item.requester_id == requester_id
+                and item.role == role
+            ]
+
+    def consume_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+        response_text: str,
+    ) -> bool:
+        del response_text
+        with self._lock:
+            item = self._pending_confirmations.get(token_hash)
+            if item is None or item.consumed:
+                return False
+            del self._pending_confirmations[token_hash]
+            return True
+
+    def append_audit_log(
+        self,
+        *,
+        audit_id: str,
+        timestamp: datetime,
+        request_id: str,
+        session_id: str,
+        requester_id: str,
+        role: str,
+        target_persona_id: str | None,
+        tool_name: str,
+        argument_names: list[str],
+        decision: str,
+        status: str,
+        risk_level: str,
+        requires_confirmation: bool,
+        error_code: str | None,
+        record_id: str | None,
+        duration_ms: int | None,
+    ) -> None:
+        with self._lock:
+            self._audit_logs.append({
+                "audit_id": audit_id,
+                "timestamp": timestamp,
+                "request_id": request_id,
+                "session_id": session_id,
+                "requester_id": requester_id,
+                "role": role,
+                "target_persona_id": target_persona_id,
+                "tool_name": tool_name,
+                "argument_names": list(argument_names),
+                "decision": decision,
+                "status": status,
+                "risk_level": risk_level,
+                "requires_confirmation": requires_confirmation,
+                "error_code": error_code,
+                "record_id": record_id,
+                "duration_ms": duration_ms,
+            })
+
+    def get_all_audit_logs(self) -> list[dict[str, object]]:
+        with self._lock:
+            return list(self._audit_logs)
+
     def get_all_events(self) -> list[CareEvent]:
         with self._lock:
             return list(self._events.values())
@@ -311,3 +411,5 @@ class InMemoryCareRepository:
             self._reminder_idempotency.clear()
             self._conversation_sessions.clear()
             self._conversation_messages.clear()
+            self._pending_confirmations.clear()
+            self._audit_logs.clear()

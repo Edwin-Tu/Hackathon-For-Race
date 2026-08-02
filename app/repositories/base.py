@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 
 class SessionScopeError(RuntimeError):
@@ -61,6 +61,26 @@ class ConversationMessage:
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class PendingToolConfirmation:
+    """Durable, server-side representation of one pending ToolCall."""
+
+    token_hash: str
+    request_id: str
+    session_id: str
+    requester_id: str
+    role: str
+    tool_call_id: str
+    tool_name: str
+    arguments: dict[str, Any]
+    target_persona_id: str | None
+    arguments_hash: str
+    summary: str
+    created_at: datetime
+    expires_at: datetime
+    consumed: bool = False
 
 
 @runtime_checkable
@@ -152,3 +172,50 @@ class CareRepository(Protocol):
         max_messages: int,
         max_chars: int,
     ) -> list[ConversationMessage]: ...
+
+    def create_pending_confirmation(
+        self,
+        confirmation: PendingToolConfirmation,
+    ) -> None: ...
+
+    def get_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+    ) -> PendingToolConfirmation | None: ...
+
+    def get_pending_confirmation_for_context(
+        self,
+        *,
+        session_id: str,
+        requester_id: str,
+        role: str,
+    ) -> list[PendingToolConfirmation]: ...
+
+    def consume_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+        response_text: str,
+    ) -> bool: ...
+
+    def append_audit_log(
+        self,
+        *,
+        audit_id: str,
+        timestamp: datetime,
+        request_id: str,
+        session_id: str,
+        requester_id: str,
+        role: str,
+        target_persona_id: str | None,
+        tool_name: str,
+        argument_names: list[str],
+        decision: str,
+        status: str,
+        risk_level: str,
+        requires_confirmation: bool,
+        error_code: str | None,
+        record_id: str | None,
+        duration_ms: int | None,
+    ) -> None: ...

@@ -12,6 +12,7 @@ selected from a fixed allowlist and never come from the model or user input.
 from __future__ import annotations
 
 import logging
+import json
 import threading
 import uuid
 from contextlib import contextmanager
@@ -34,6 +35,7 @@ except ModuleNotFoundError:  # Allows memory-mode tests without MySQL extras.
 from app.repositories.base import (
     CareEvent,
     ConversationMessage,
+    PendingToolConfirmation,
     Reminder,
     ScheduleItem,
     SessionScopeError,
@@ -186,6 +188,38 @@ class MySQLCareRepository:
         self._schema_lock = threading.Lock()
         self._conversation_schema: ConversationSchemaCapabilities | None = None
         self._conversation_schema_lock = threading.Lock()
+
+    def _get_table_columns(
+        self,
+        connection: MySQLConnection,
+        *table_names: str,
+    ) -> dict[str, frozenset[str]]:
+        """Return columns for a fixed internal table allowlist."""
+        allowed = {
+            "confirmation_requests",
+            "tool_executions",
+            "audit_logs",
+        }
+        if not table_names or any(name not in allowed for name in table_names):
+            raise RepositoryConfigurationError("Unsupported internal table lookup")
+        placeholders = ", ".join(["%s"] * len(table_names))
+        cursor = connection.cursor()
+        try:
+            cursor.execute(
+                f"""
+                SELECT table_name, column_name
+                  FROM information_schema.columns
+                 WHERE table_schema = %s
+                   AND table_name IN ({placeholders})
+                """,
+                (self._connection_kwargs["database"], *table_names),
+            )
+            columns: dict[str, set[str]] = {name: set() for name in table_names}
+            for table_name, column_name in cursor.fetchall():
+                columns[str(table_name)].add(str(column_name))
+            return {name: frozenset(values) for name, values in columns.items()}
+        finally:
+            cursor.close()
 
     @property
     def event_table(self) -> str:
@@ -351,10 +385,6 @@ class MySQLCareRepository:
         source_text: str | None = None,
         idempotency_key: str | None = None,
     ) -> str:
-        # Neither supported event table has an idempotency column. Duplicate
-        # suppression remains enforced by ToolGateway's server-side store.
-        del idempotency_key
-
         event_id = str(uuid.uuid4())
         event_time_utc = _to_utc_naive(event_time)
         now_utc = datetime.now(UTC).replace(tzinfo=None)
@@ -368,47 +398,74 @@ class MySQLCareRepository:
                 actor_type = "user" if existing_user_id else "agent"
 
                 table = schema.event_table  # fixed allowlist, not user input
-                cursor.execute(
-                    f"""
-                    INSERT INTO `{table}` (
-                        event_id,
-                        persona_id,
-                        event_type,
-                        content,
-                        event_time,
-                        confidence,
-                        source_text,
-                        memory_status,
-                        risk_level,
-                        created_by_type,
-                        created_by_id,
-                        committed_at,
-                        created_at,
-                        updated_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s,
-                        'committed', 'low', %s, %s, %s, %s, %s
+                if idempotency_key and "idempotency_key" in schema.event_columns:
+                    cursor.execute(
+                        f"SELECT event_id FROM `{table}` WHERE idempotency_key = %s LIMIT 1",
+                        (idempotency_key,),
                     )
-                    """,
-                    (
-                        event_id,
-                        persona_id,
-                        event_type,
-                        content,
-                        event_time_utc,
-                        confidence,
-                        source_text,
-                        actor_type,
-                        existing_user_id,
-                        now_utc,
-                        now_utc,
-                        now_utc,
-                    ),
+                    existing = cursor.fetchone()
+                    if existing:
+                        connection.rollback()
+                        return str(existing[0])
+
+                columns = [
+                    "event_id",
+                    "persona_id",
+                    "event_type",
+                    "content",
+                    "event_time",
+                    "confidence",
+                    "source_text",
+                    "memory_status",
+                    "risk_level",
+                    "created_by_type",
+                    "created_by_id",
+                    "committed_at",
+                    "created_at",
+                    "updated_at",
+                ]
+                values: list[Any] = [
+                    event_id,
+                    persona_id,
+                    event_type,
+                    content,
+                    event_time_utc,
+                    confidence,
+                    source_text,
+                    "committed",
+                    "low",
+                    actor_type,
+                    existing_user_id,
+                    now_utc,
+                    now_utc,
+                    now_utc,
+                ]
+                if idempotency_key and "idempotency_key" in schema.event_columns:
+                    columns.append("idempotency_key")
+                    values.append(idempotency_key)
+
+                column_sql = ", ".join(f"`{column}`" for column in columns)
+                placeholders = ", ".join(["%s"] * len(columns))
+                cursor.execute(
+                    f"INSERT INTO `{table}` ({column_sql}) VALUES ({placeholders})",
+                    tuple(values),
                 )
                 connection.commit()
                 return event_id
-            except Exception:
+            except MySQLError as exc:
                 connection.rollback()
+                if (
+                    idempotency_key
+                    and getattr(exc, "errno", None) == 1062
+                    and "idempotency_key" in schema.event_columns
+                ):
+                    cursor.execute(
+                        f"SELECT event_id FROM `{table}` WHERE idempotency_key = %s LIMIT 1",
+                        (idempotency_key,),
+                    )
+                    existing = cursor.fetchone()
+                    if existing:
+                        return str(existing[0])
                 raise
             finally:
                 cursor.close()
@@ -1129,6 +1186,450 @@ class MySQLCareRepository:
             selected.append(message)
             chars += size
         return list(reversed(selected))
+
+    @staticmethod
+    def _decode_json_object(value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return dict(value)
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode("utf-8")
+        if isinstance(value, str) and value:
+            try:
+                decoded = json.loads(value)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return {}
+            if isinstance(decoded, dict):
+                return decoded
+        return {}
+
+    @staticmethod
+    def _confirmation_from_row(row: tuple[Any, ...]) -> PendingToolConfirmation:
+        arguments = MySQLCareRepository._decode_json_object(row[5])
+        payload = MySQLCareRepository._decode_json_object(row[6])
+        created_at = row[8]
+        expires_at = row[9]
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        return PendingToolConfirmation(
+            token_hash=str(row[0]),
+            request_id=str(row[1]),
+            session_id=str(row[2]),
+            requester_id=str(payload.get("requester_id", "")),
+            role=str(payload.get("role", "")),
+            tool_call_id=str(payload.get("tool_call_id", row[4])),
+            tool_name=str(row[4]),
+            arguments=arguments,
+            target_persona_id=(
+                str(payload["target_persona_id"])
+                if payload.get("target_persona_id") is not None
+                else (str(row[3]) if row[3] is not None else None)
+            ),
+            arguments_hash=str(payload.get("arguments_hash", "")),
+            summary=str(row[7]),
+            created_at=created_at,
+            expires_at=expires_at,
+            consumed=str(row[10]).lower() != "pending",
+        )
+
+    def create_pending_confirmation(
+        self,
+        confirmation: PendingToolConfirmation,
+    ) -> None:
+        """Persist a pending ToolCall without storing the raw confirmation token."""
+        now_utc = datetime.now(UTC).replace(tzinfo=None)
+        expires_utc = _to_utc_naive(confirmation.expires_at)
+        tool_execution_id = str(uuid.uuid4())
+
+        with self._connection() as connection:
+            table_columns = self._get_table_columns(
+                connection,
+                "confirmation_requests",
+                "tool_executions",
+            )
+            confirmation_columns = table_columns["confirmation_requests"]
+            execution_columns = table_columns["tool_executions"]
+            required_confirmation = {
+                "confirmation_id",
+                "session_id",
+                "target_type",
+                "target_id",
+                "confirmation_question",
+                "confirmation_status",
+                "expires_at",
+                "created_at",
+                "updated_at",
+            }
+            required_execution = {
+                "tool_execution_id",
+                "request_id",
+                "session_id",
+                "persona_id",
+                "tool_name",
+                "tool_arguments",
+                "tool_status",
+                "result_payload",
+                "started_at",
+            }
+            if missing := required_confirmation - confirmation_columns:
+                raise RepositoryConfigurationError(
+                    "confirmation_requests is missing columns: "
+                    + ", ".join(sorted(missing))
+                )
+            if missing := required_execution - execution_columns:
+                raise RepositoryConfigurationError(
+                    "tool_executions is missing columns: "
+                    + ", ".join(sorted(missing))
+                )
+
+            conversation_schema = self._detect_conversation_schema(connection)
+            cursor = connection.cursor()
+            try:
+                self._ensure_conversation_session_with_cursor(
+                    cursor,
+                    conversation_schema,
+                    session_id=confirmation.session_id,
+                    user_id=confirmation.requester_id,
+                    persona_id=confirmation.target_persona_id or "",
+                    now_utc=now_utc,
+                )
+                organization_id: str | None = None
+                if (
+                    "organization_id" in execution_columns
+                    or "organization_id" in confirmation_columns
+                ):
+                    organization_id = self._resolve_organization_id(
+                        cursor,
+                        conversation_schema,
+                        user_id=confirmation.requester_id,
+                        persona_id=confirmation.target_persona_id or "",
+                    )
+
+                # A trusted session has at most one active pending action.
+                assignments = ["confirmation_status = 'rejected'"]
+                if "response_text" in confirmation_columns:
+                    assignments.append("response_text = 'superseded'")
+                if "updated_at" in confirmation_columns:
+                    assignments.append("updated_at = %s")
+                    replace_params: list[Any] = [now_utc, confirmation.session_id]
+                else:
+                    replace_params = [confirmation.session_id]
+                cursor.execute(
+                    f"""
+                    UPDATE confirmation_requests
+                       SET {', '.join(assignments)}
+                     WHERE session_id = %s
+                       AND LOWER(confirmation_status) = 'pending'
+                    """,
+                    tuple(replace_params),
+                )
+
+                execution_payload = {
+                    "requester_id": confirmation.requester_id,
+                    "role": confirmation.role,
+                    "tool_call_id": confirmation.tool_call_id,
+                    "target_persona_id": confirmation.target_persona_id,
+                    "arguments_hash": confirmation.arguments_hash,
+                    "summary": confirmation.summary[:190],
+                }
+                execution_insert_columns = [
+                    "tool_execution_id",
+                    "request_id",
+                    "session_id",
+                    "persona_id",
+                    "tool_name",
+                    "tool_arguments",
+                    "tool_status",
+                    "result_payload",
+                    "started_at",
+                ]
+                execution_values: list[Any] = [
+                    tool_execution_id,
+                    confirmation.request_id,
+                    confirmation.session_id,
+                    confirmation.target_persona_id,
+                    confirmation.tool_name,
+                    json.dumps(confirmation.arguments, ensure_ascii=False, default=str),
+                    "awaiting_confirmation",
+                    json.dumps(execution_payload, ensure_ascii=False),
+                    now_utc,
+                ]
+                if "organization_id" in execution_columns:
+                    execution_insert_columns.append("organization_id")
+                    execution_values.append(organization_id)
+                if "risk_level" in execution_columns:
+                    execution_insert_columns.append("risk_level")
+                    execution_values.append("medium")
+                execution_sql_columns = ", ".join(
+                    f"`{column}`" for column in execution_insert_columns
+                )
+                cursor.execute(
+                    f"INSERT INTO tool_executions ({execution_sql_columns}) "
+                    f"VALUES ({', '.join(['%s'] * len(execution_values))})",
+                    tuple(execution_values),
+                )
+
+                confirmation_insert_columns = [
+                    "confirmation_id",
+                    "session_id",
+                    "target_type",
+                    "target_id",
+                    "confirmation_question",
+                    "confirmation_status",
+                    "expires_at",
+                    "created_at",
+                    "updated_at",
+                ]
+                confirmation_values: list[Any] = [
+                    confirmation.token_hash,
+                    confirmation.session_id,
+                    "tool_execution",
+                    tool_execution_id,
+                    confirmation.summary[:190],
+                    "pending",
+                    expires_utc,
+                    now_utc,
+                    now_utc,
+                ]
+                if "organization_id" in confirmation_columns:
+                    confirmation_insert_columns.append("organization_id")
+                    confirmation_values.append(organization_id)
+                if "persona_id" in confirmation_columns:
+                    confirmation_insert_columns.append("persona_id")
+                    confirmation_values.append(confirmation.target_persona_id)
+                confirmation_sql_columns = ", ".join(
+                    f"`{column}`" for column in confirmation_insert_columns
+                )
+                cursor.execute(
+                    f"INSERT INTO confirmation_requests ({confirmation_sql_columns}) "
+                    f"VALUES ({', '.join(['%s'] * len(confirmation_values))})",
+                    tuple(confirmation_values),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def _select_pending_confirmation_rows(
+        self,
+        cursor: Any,
+        *,
+        where_sql: str,
+        params: tuple[Any, ...],
+    ) -> list[tuple[Any, ...]]:
+        cursor.execute(
+            f"""
+            SELECT c.confirmation_id,
+                   t.request_id,
+                   c.session_id,
+                   t.persona_id,
+                   t.tool_name,
+                   t.tool_arguments,
+                   t.result_payload,
+                   c.confirmation_question,
+                   c.created_at,
+                   c.expires_at,
+                   c.confirmation_status
+              FROM confirmation_requests c
+              JOIN tool_executions t ON t.tool_execution_id = c.target_id
+             WHERE c.target_type = 'tool_execution'
+               AND {where_sql}
+             ORDER BY c.created_at DESC
+            """,
+            params,
+        )
+        return list(cursor.fetchall())
+
+    def get_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+    ) -> PendingToolConfirmation | None:
+        with self._connection() as connection:
+            cursor = connection.cursor()
+            try:
+                rows = self._select_pending_confirmation_rows(
+                    cursor,
+                    where_sql="c.confirmation_id = %s",
+                    params=(token_hash,),
+                )
+                return self._confirmation_from_row(rows[0]) if rows else None
+            finally:
+                cursor.close()
+
+    def get_pending_confirmation_for_context(
+        self,
+        *,
+        session_id: str,
+        requester_id: str,
+        role: str,
+    ) -> list[PendingToolConfirmation]:
+        with self._connection() as connection:
+            cursor = connection.cursor()
+            try:
+                rows = self._select_pending_confirmation_rows(
+                    cursor,
+                    where_sql=(
+                        "c.session_id = %s "
+                        "AND LOWER(c.confirmation_status) = 'pending'"
+                    ),
+                    params=(session_id,),
+                )
+                return [
+                    item
+                    for item in (self._confirmation_from_row(row) for row in rows)
+                    if item.requester_id == requester_id and item.role == role
+                ]
+            finally:
+                cursor.close()
+
+    def consume_pending_confirmation(
+        self,
+        *,
+        token_hash: str,
+        response_text: str,
+    ) -> bool:
+        normalized = response_text.strip().lower()
+        status = {
+            "confirmed": "approved",
+            "cancelled": "rejected",
+            "expired": "expired",
+            "integrity_failed": "rejected",
+        }.get(normalized, "rejected")
+        now_utc = datetime.now(UTC).replace(tzinfo=None)
+        with self._connection() as connection:
+            columns = self._get_table_columns(
+                connection,
+                "confirmation_requests",
+            )["confirmation_requests"]
+            assignments = ["confirmation_status = %s"]
+            values: list[Any] = [status]
+            if "response_text" in columns:
+                assignments.append("response_text = %s")
+                values.append(normalized)
+            if status == "approved" and "confirmed_at" in columns:
+                assignments.append("confirmed_at = %s")
+                values.append(now_utc)
+            if "updated_at" in columns:
+                assignments.append("updated_at = %s")
+                values.append(now_utc)
+            values.append(token_hash)
+            cursor = connection.cursor()
+            try:
+                cursor.execute(
+                    f"""
+                    UPDATE confirmation_requests
+                       SET {', '.join(assignments)}
+                     WHERE confirmation_id = %s
+                       AND LOWER(confirmation_status) = 'pending'
+                    """,
+                    tuple(values),
+                )
+                changed = cursor.rowcount == 1
+                connection.commit()
+                return changed
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def append_audit_log(
+        self,
+        *,
+        audit_id: str,
+        timestamp: datetime,
+        request_id: str,
+        session_id: str,
+        requester_id: str,
+        role: str,
+        target_persona_id: str | None,
+        tool_name: str,
+        argument_names: list[str],
+        decision: str,
+        status: str,
+        risk_level: str,
+        requires_confirmation: bool,
+        error_code: str | None,
+        record_id: str | None,
+        duration_ms: int | None,
+    ) -> None:
+        created_at = _to_utc_naive(timestamp)
+        with self._connection() as connection:
+            columns = self._get_table_columns(connection, "audit_logs")["audit_logs"]
+            required = {
+                "audit_id",
+                "request_id",
+                "actor_type",
+                "action_type",
+                "resource_type",
+                "result",
+                "created_at",
+            }
+            if missing := required - columns:
+                raise RepositoryConfigurationError(
+                    "audit_logs is missing columns: " + ", ".join(sorted(missing))
+                )
+
+            metadata = {
+                "session_id": session_id,
+                "requester_id": requester_id,
+                "role": role,
+                "argument_names": list(argument_names),
+                "decision": decision,
+                "status": status,
+                "requires_confirmation": requires_confirmation,
+                "duration_ms": duration_ms,
+            }
+            insert_columns = [
+                "audit_id",
+                "request_id",
+                "actor_type",
+                "action_type",
+                "resource_type",
+                "result",
+                "created_at",
+            ]
+            values: list[Any] = [
+                audit_id,
+                request_id,
+                "user",
+                f"tool.{decision}",
+                "tool",
+                status,
+                created_at,
+            ]
+            optional: tuple[tuple[str, Any], ...] = (
+                ("persona_id", target_persona_id),
+                ("actor_id", requester_id),
+                ("resource_id", record_id),
+                ("tool_name", tool_name),
+                ("risk_level", risk_level),
+                ("reason", error_code),
+                ("metadata", json.dumps(metadata, ensure_ascii=False)),
+            )
+            for column, value in optional:
+                if column in columns:
+                    insert_columns.append(column)
+                    values.append(value)
+
+            cursor = connection.cursor()
+            try:
+                sql_columns = ", ".join(f"`{column}`" for column in insert_columns)
+                cursor.execute(
+                    f"INSERT INTO audit_logs ({sql_columns}) "
+                    f"VALUES ({', '.join(['%s'] * len(values))})",
+                    tuple(values),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
 
     def get_all_events(self) -> list[CareEvent]:
         with self._connection() as connection:

@@ -1,0 +1,227 @@
+# ==========================================
+# Environment & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+*.env
+.envrc
+
+# AWS Credentials
+.aws/
+aws-exports.js
+amplify/
+.amplify/
+
+# API Keys & Secrets
+*.pem
+*.key
+*.cert
+
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp
+.pnp.js
+
+# ==========================================
+# Next.js
+# ==========================================
+.next/
+out/
+build/
+dist/
+.vercel
+.turbo
+
+# Next.js Build Info
+next-env.d.ts
+*.tsbuildinfo
+
+# ==========================================
+# Testing
+# ==========================================
+coverage/
+.nyc_output
+*.lcov
+.jest-cache
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# ==========================================
+# Prisma
+# ==========================================
+prisma/*.db
+prisma/*.db-journal
+prisma/migrations/*
+!prisma/migrations/.gitkeep
+
+# ==========================================
+# Database
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================================
+# IDE & Editors
+# ==========================================
+# VSCode
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==========================================
+# OS Files
+# ==========================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ==========================================
+# Logs
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+build.log
+
+# ==========================================
+# Temporary Files
+# ==========================================
+.cache/
+temp/
+tmp/
+*.tmp
+*.temp
+tmp.css
+
+# ==========================================
+# Docker
+# ==========================================
+docker-compose.override.yml
+.dockerignore.local
+
+# ==========================================
+# Backup Files
+# ==========================================
+*.backup
+*.bak
+*-backup-*/
+*.orig
+
+# ==========================================
+# Build Artifacts
+# ==========================================
+*.bundle.js
+*.bundle.js.map
+*.chunk.js
+*.chunk.js.map
+
+# ==========================================
+# Misc
+# ==========================================
+.husky/_
+!.husky/.gitignore
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Documentation Build
+docs/_build/
+site/
+
+# ==========================================
+# Package Manager Locks
+# ==========================================
+# Keep package-lock.json, ignore others
+yarn.lock
+pnpm-lock.yaml
+
+# ==========================================
+# Project Specific
+# ==========================================
+# Work Records (keep directory, ignore temp files)
+docs/WorkRecord/*.tmp
+
+# Uploads
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Generated files
+src/generated/
+
+# Local configuration
+*.local
+
+docs/

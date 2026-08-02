@@ -179,12 +179,17 @@ class HealthResponse(BaseModel):
     api_auth_required: bool = False
     repository_backend: str = ""
     event_table: str = ""
+    asr_mode: str = ""
+    breeze_asr_enabled: bool = False
+    taiwanese_tts_enabled: bool = False
 
 
 class TranscriptionTrace(BaseModel):
-    """Whisper metadata safe to expose to an API client."""
+    """ASR metadata safe to expose to an API client."""
 
     model: str
+    provider: str = "faster_whisper"
+    requested_language: str | None = None
     language: str | None = None
     language_probability: float | None = None
     duration_seconds: float | None = None
@@ -200,11 +205,16 @@ class TranscriptionResponse(BaseModel):
 
 
 class SpeechDeliveryTrace(BaseModel):
-    """Local speech delivery result for a voice turn."""
+    """Speech delivery result for a voice turn."""
 
     ok: bool
     backend: str
     error: str | None = None
+    language: str | None = None
+    spoken_text: str | None = None
+    audio_base64: str | None = None
+    content_type: str | None = None
+    sample_rate_hz: int | None = None
 
 
 class VoiceTurnResponse(BaseModel):
@@ -213,6 +223,26 @@ class VoiceTurnResponse(BaseModel):
     transcript: str
     trace: TranscriptionTrace
     agent: ChatResponse
+    input_language: str | None = None
+    reply_language: str = "zh-TW"
+    translated_reply: str | None = None
+    speech_delivery: SpeechDeliveryTrace | None = None
+
+
+
+
+class VoiceConfirmationRequest(ConfirmationRequest):
+    """Confirm/cancel a pending voice operation while preserving reply language."""
+
+    language: str = Field("auto", description="zh-TW、nan-TW 或 auto")
+
+
+class VoiceReplyResponse(BaseModel):
+    """Speech-ready response used after a voice confirmation decision."""
+
+    agent: ChatResponse
+    reply_language: str = "zh-TW"
+    translated_reply: str | None = None
     speech_delivery: SpeechDeliveryTrace | None = None
 
 

@@ -36,6 +36,18 @@ Parameters:
     Type: String
     Default: small
     AllowedValues: [tiny, base, small, medium]
+  AsrMode:
+    Type: String
+    Default: hybrid
+    AllowedValues: [hybrid, whisper, breeze]
+  BreezeAsrEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  TaiwaneseTtsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
   CreatePrivateEndpoints:
     Type: String
     Default: 'true'
@@ -299,6 +311,12 @@ Resources:
               Value: '12'
             - Name: CONVERSATION_HISTORY_MAX_CHARS
               Value: '12000'
+            - Name: ASR_MODE
+              Value: !Ref AsrMode
+            - Name: ASR_AUTO_PRIMARY
+              Value: whisper
+            - Name: ASR_FALLBACK_ENABLED
+              Value: 'true'
             - Name: WHISPER_ENABLED
               Value: 'true'
             - Name: WHISPER_MODEL_SIZE
@@ -309,6 +327,20 @@ Resources:
               Value: int8
             - Name: WHISPER_DOWNLOAD_ROOT
               Value: /opt/models
+            - Name: BREEZE_ASR_ENABLED
+              Value: !Ref BreezeAsrEnabled
+            - Name: BREEZE_ASR_MODEL_ID
+              Value: MediaTek-Research/Breeze-ASR-26
+            - Name: BREEZE_ASR_DEVICE
+              Value: cpu
+            - Name: TAIWANESE_REPLY_TRANSLATION_ENABLED
+              Value: 'true'
+            - Name: TAIWANESE_TTS_ENABLED
+              Value: !Ref TaiwaneseTtsEnabled
+            - Name: TAIWANESE_TTS_MODEL_ID
+              Value: facebook/mms-tts-nan
+            - Name: TAIWANESE_TTS_DEVICE
+              Value: cpu
             - Name: MAX_AUDIO_BYTES
               Value: '8388608'
             - Name: REMINDER_SCHEDULER_ENABLED

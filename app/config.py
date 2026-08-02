@@ -45,8 +45,12 @@ class Settings(BaseSettings):
     DATABASE_SSL_MODE: str = "preferred"
     DATABASE_SSL_CA: str | None = None
 
-    # Voice input (faster-whisper). In the cloud the model can be preloaded in
-    # the container image to avoid downloading it during service startup.
+    # Bilingual voice input. Explicit zh-TW requests use faster-whisper and
+    # explicit nan-TW requests use Breeze-ASR-26. Auto mode uses the configured
+    # primary and only falls back after an unavailable/empty result.
+    ASR_MODE: str = "hybrid"
+    ASR_AUTO_PRIMARY: str = "whisper"
+    ASR_FALLBACK_ENABLED: bool = True
     WHISPER_ENABLED: bool = True
     WHISPER_MODEL_SIZE: str = "small"
     WHISPER_DEVICE: str = "cpu"
@@ -54,7 +58,19 @@ class Settings(BaseSettings):
     WHISPER_DOWNLOAD_ROOT: str | None = None
     WHISPER_BEAM_SIZE: int = 5
     WHISPER_VAD_FILTER: bool = True
+    BREEZE_ASR_ENABLED: bool = False
+    BREEZE_ASR_MODEL_ID: str = "MediaTek-Research/Breeze-ASR-26"
+    BREEZE_ASR_DEVICE: str = "auto"
     MAX_AUDIO_BYTES: int = 15 * 1024 * 1024
+
+    # Taiwanese reply path: translate the complete Agent reply, then synthesize
+    # the translated romanized text with the optional Min Nan TTS model.
+    TAIWANESE_REPLY_TRANSLATION_ENABLED: bool = True
+    TAIWANESE_TTS_ENABLED: bool = False
+    TAIWANESE_TTS_MODEL_ID: str = "facebook/mms-tts-nan"
+    TAIWANESE_TTS_DEVICE: str = "auto"
+    TAIWANESE_TTS_MAX_CHARS: int = 600
+    MAX_TTS_AUDIO_BYTES: int = 5 * 1024 * 1024
 
     # Reminder scheduler and output.
     REMINDER_SCHEDULER_ENABLED: bool = True

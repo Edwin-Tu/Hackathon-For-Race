@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      args:
+        INSTALL_BILINGUAL_VOICE: "true"
+        PRELOAD_WHISPER: "true"
+        PRELOAD_WHISPER_MODEL: "small"
+        PRELOAD_BREEZE: "false"
+        PRELOAD_TAIWANESE_TTS: "false"
+    env_file:
+      - .env
+    environment:
+      ASR_MODE: hybrid
+      BREEZE_ASR_ENABLED: "true"
+      TAIWANESE_REPLY_TRANSLATION_ENABLED: "true"
+      TAIWANESE_TTS_ENABLED: "true"
+      BREEZE_ASR_DEVICE: cpu
+      TAIWANESE_TTS_DEVICE: cpu
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      SMART_CARE_API_URL: http://backend:8000
+      SMART_CARE_API_TOKEN: ${API_BEARER_TOKEN:-}
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"

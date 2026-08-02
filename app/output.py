@@ -104,11 +104,22 @@ class OutputEventStore:
             self._events.append(stored)
             return stored
 
-    def list(self, *, after_id: int | None = None, limit: int = 50) -> list[OutputEnvelope]:
+    def list(
+        self,
+        *,
+        after_id: int | None = None,
+        limit: int = 50,
+        persona_ids: set[str] | None = None,
+        session_id: str | None = None,
+    ) -> list[OutputEnvelope]:
         with self._lock:
             events = list(self._events)
         if after_id is not None:
             events = [event for event in events if (event.event_id or 0) > after_id]
+        if persona_ids is not None:
+            events = [event for event in events if event.persona_id in persona_ids]
+        if session_id is not None:
+            events = [event for event in events if event.session_id == session_id]
         return events[-max(1, min(limit, 200)) :]
 
     def clear(self) -> None:

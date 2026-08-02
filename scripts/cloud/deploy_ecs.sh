@@ -10,6 +10,12 @@ DATABASE_SECRET_NAME="${DATABASE_SECRET_NAME:-smart-care-agent/database-url}"
 API_TOKEN_SECRET_NAME="${API_TOKEN_SECRET_NAME:-smart-care-agent/api-bearer-token}"
 BEDROCK_MODEL_ID="${BEDROCK_MODEL_ID:-us.anthropic.claude-haiku-4-5-20251001-v1:0}"
 WHISPER_MODEL_SIZE="${WHISPER_MODEL_SIZE:-small}"
+ASR_MODE="${ASR_MODE:-hybrid}"
+BREEZE_ASR_ENABLED="${BREEZE_ASR_ENABLED:-false}"
+TAIWANESE_TTS_ENABLED="${TAIWANESE_TTS_ENABLED:-false}"
+INSTALL_BILINGUAL_VOICE="${INSTALL_BILINGUAL_VOICE:-false}"
+PRELOAD_BREEZE="${PRELOAD_BREEZE:-false}"
+PRELOAD_TAIWANESE_TTS="${PRELOAD_TAIWANESE_TTS:-false}"
 CREATE_PRIVATE_ENDPOINTS="${CREATE_PRIVATE_ENDPOINTS:-true}"
 
 required=(VPC_ID PRIVATE_SUBNET_IDS PRIVATE_ROUTE_TABLE_IDS RDS_SECURITY_GROUP_ID DEMO_USER_ID DEMO_PERSONA_ID DATABASE_URL API_BEARER_TOKEN)
@@ -34,9 +40,19 @@ aws ecr describe-repositories --region "$REGION" --repository-names "$ECR_REPOSI
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
+if [[ "$BREEZE_ASR_ENABLED" == "true" || "$TAIWANESE_TTS_ENABLED" == "true" ]]; then
+  if [[ "$INSTALL_BILINGUAL_VOICE" != "true" ]]; then
+    echo "BREEZE_ASR_ENABLED/TAIWANESE_TTS_ENABLED requires INSTALL_BILINGUAL_VOICE=true" >&2
+    exit 2
+  fi
+fi
+
 docker build \
   --platform linux/arm64 \
   --build-arg "PRELOAD_WHISPER_MODEL=${WHISPER_MODEL_SIZE}" \
+  --build-arg "INSTALL_BILINGUAL_VOICE=${INSTALL_BILINGUAL_VOICE}" \
+  --build-arg "PRELOAD_BREEZE=${PRELOAD_BREEZE}" \
+  --build-arg "PRELOAD_TAIWANESE_TTS=${PRELOAD_TAIWANESE_TTS}" \
   --tag "${ECR_URI}:${IMAGE_TAG}" .
 docker push "${ECR_URI}:${IMAGE_TAG}"
 
@@ -61,6 +77,9 @@ aws cloudformation deploy \
     "DemoUserId=${DEMO_USER_ID}" \
     "DemoPersonaId=${DEMO_PERSONA_ID}" \
     "WhisperModelSize=${WHISPER_MODEL_SIZE}" \
+    "AsrMode=${ASR_MODE}" \
+    "BreezeAsrEnabled=${BREEZE_ASR_ENABLED}" \
+    "TaiwaneseTtsEnabled=${TAIWANESE_TTS_ENABLED}" \
     "CreatePrivateEndpoints=${CREATE_PRIVATE_ENDPOINTS}"
 
 SERVICE_URL="$(aws cloudformation describe-stacks \
