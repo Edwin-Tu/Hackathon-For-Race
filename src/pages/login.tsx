@@ -7,8 +7,6 @@ import {
   Typography,
   Box,
   Paper,
-  Divider,
-  Chip,
   Avatar,
   Alert,
   IconButton,
@@ -17,21 +15,15 @@ import {
   Grow,
   CircularProgress,
   Backdrop,
-  Collapse,
 } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import { useRouter } from 'next/router';
 import ShieldIcon from '@mui/icons-material/Shield';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
-import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import LoginIcon from '@mui/icons-material/Login';
-import SecurityIcon from '@mui/icons-material/Security';
 
 // 動畫定義
 const float = keyframes`
@@ -49,55 +41,39 @@ const shimmer = keyframes`
   100% { background-position: 200% 0; }
 `;
 
-// 預設 Demo 帳號
-interface DemoAccount {
+// 帳號資料庫
+interface AccountData {
   username: string;
+  password: string;
   role: string;
   displayName: string;
-  icon: React.ReactNode;
-  color: 'error' | 'info' | 'success' | 'warning';
-  description: string;
 }
 
-const demoAccounts: DemoAccount[] = [
+const validAccounts: AccountData[] = [
   { 
     username: 'admin', 
+    password: 'admin123',
     role: 'ADMIN', 
-    displayName: '系統管理者', 
-    icon: <AdminPanelSettingsIcon />, 
-    color: 'error',
-    description: '管理使用者、角色與系統設定',
-  },
-  { 
-    username: 'caregiver', 
-    role: 'CAREGIVER', 
-    displayName: '照護人員', 
-    icon: <LocalHospitalIcon />, 
-    color: 'info',
-    description: '照護住民、查看摘要與警示',
+    displayName: '系統管理者',
   },
   { 
     username: 'family', 
+    password: 'family123',
     role: 'FAMILY', 
-    displayName: '家屬', 
-    icon: <FamilyRestroomIcon />, 
-    color: 'success',
-    description: '查看住民狀況與通知',
+    displayName: '家屬',
   },
   { 
-    username: 'resident', 
-    role: 'RESIDENT', 
-    displayName: '住民（語音互動）', 
-    icon: <RecordVoiceOverIcon />, 
-    color: 'warning',
-    description: '直接進入語音互動介面',
+    username: 'elder-care', 
+    password: 'eldercare123',
+    role: 'CAREGIVER', 
+    displayName: '長照機構',
   },
-];
-
-// 模擬住民 Persona 列表
-const mockPersonas = [
-  { id: 'p1', displayName: '王奶奶', status: 'active' },
-  { id: 'p2', displayName: '李爺爺', status: 'active' },
+  { 
+    username: 'elder', 
+    password: 'elder123',
+    role: 'RESIDENT', 
+    displayName: '長者',
+  },
 ];
 
 export default function Login() {
@@ -105,7 +81,6 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [expandedResident, setExpandedResident] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -119,7 +94,18 @@ export default function Login() {
       setError('請輸入帳號與密碼');
       return;
     }
-    await performLogin(username);
+
+    // 驗證帳號密碼
+    const account = validAccounts.find(
+      acc => acc.username === username && acc.password === password
+    );
+
+    if (!account) {
+      setError('帳號或密碼錯誤');
+      return;
+    }
+
+    await performLogin(account);
   };
 
   // Base64 編碼（支援 Unicode）
@@ -127,26 +113,18 @@ export default function Login() {
     return btoa(unescape(encodeURIComponent(str)));
   };
 
-  // 執行員工登入
-  const performLogin = async (user: string) => {
+  // 執行登入
+  const performLogin = async (account: AccountData) => {
     setLoading(true);
     try {
       // 模擬 API 延遲
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // 根據帳號判斷角色
-      let role = 'CAREGIVER';
-      if (user.toLowerCase().includes('admin')) {
-        role = 'ADMIN';
-      } else if (user.toLowerCase().includes('family')) {
-        role = 'FAMILY';
-      }
-
       // 模擬產生 JWT
       const mockPayload = {
-        sub: user,
-        role,
-        displayName: demoAccounts.find((a) => a.username === user)?.displayName || user,
+        sub: account.username,
+        role: account.role,
+        displayName: account.displayName,
         exp: Date.now() + 3600000, // 1 小時後過期
         iat: Date.now(),
       };
@@ -161,10 +139,12 @@ export default function Login() {
       document.cookie = `auth=${mockToken}; path=/; max-age=3600`;
 
       // 依角色導向
-      if (role === 'ADMIN') {
+      if (account.role === 'ADMIN') {
         router.push('/admin/Users');
-      } else if (role === 'FAMILY') {
+      } else if (account.role === 'FAMILY') {
         router.push('/family/Dashboard');
+      } else if (account.role === 'RESIDENT') {
+        router.push('/resident/voice');
       } else {
         router.push('/caregiver');
       }
@@ -174,50 +154,6 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 執行住民登入
-  const performResidentLogin = async (personaId: string) => {
-    setLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      const persona = mockPersonas.find((p) => p.id === personaId);
-      const mockPayload = {
-        sub: personaId,
-        role: 'RESIDENT',
-        displayName: persona?.displayName || personaId,
-        personaId,
-        exp: Date.now() + 3600000,
-        iat: Date.now(),
-      };
-      const mockToken =
-        encodeBase64(JSON.stringify({ alg: 'HS256', typ: 'JWT' })) +
-        '.' +
-        encodeBase64(JSON.stringify(mockPayload)) +
-        '.mock_signature';
-
-      localStorage.setItem('auth', mockToken);
-      document.cookie = `auth=${mockToken}; path=/; max-age=3600`;
-
-      // 住民直接導向語音互動頁面
-      router.push('/resident/voice');
-    } catch (err) {
-      console.error('Resident login error:', err);
-      setError('登入失敗，請稍後再試');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 快速登入（Demo 用）
-  const handleQuickLogin = (account: DemoAccount) => {
-    if (account.role === 'RESIDENT') {
-      setExpandedResident(!expandedResident);
-      return;
-    }
-    setUsername(account.username);
-    performLogin(account.username);
   };
 
   return (
@@ -417,87 +353,17 @@ export default function Login() {
                     {loading ? '登入中...' : '登入'}
                   </Button>
 
-                  {/* 快速登入區 */}
-                  <Divider sx={{ my: 4 }}>
-                    <Chip 
-                      label="Demo 快速登入" 
-                      size="small"
-                      icon={<SecurityIcon sx={{ fontSize: 16 }} />}
-                      sx={{ 
-                        px: 1,
-                        fontWeight: 500,
-                      }}
-                    />
-                  </Divider>
-
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    {demoAccounts.map((account, index) => (
-                      <React.Fragment key={account.username}>
-                        <Grow in timeout={400 + index * 100}>
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              p: 2,
-                              cursor: loading ? 'not-allowed' : 'pointer',
-                              transition: 'all 0.2s ease',
-                              opacity: loading ? 0.6 : 1,
-                              '&:hover': loading ? {} : {
-                                borderColor: theme.palette[account.color].main,
-                                bgcolor: alpha(theme.palette[account.color].main, 0.04),
-                                transform: 'translateX(4px)',
-                              },
-                            }}
-                            onClick={() => !loading && handleQuickLogin(account)}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <Avatar 
-                                sx={{ 
-                                  bgcolor: alpha(theme.palette[account.color].main, 0.15),
-                                  color: theme.palette[account.color].main,
-                                }}
-                              >
-                                {account.icon}
-                              </Avatar>
-                              <Box sx={{ flex: 1 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                  {account.displayName}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {account.description}
-                                </Typography>
-                              </Box>
-                              <Chip
-                                size="small"
-                                label={account.username}
-                                color={account.color}
-                                variant="outlined"
-                              />
-                            </Box>
-                          </Paper>
-                        </Grow>
-                        
-                        {/* 住民 Persona 選擇展開區 */}
-                        {account.role === 'RESIDENT' && (
-                          <Collapse in={expandedResident}>
-                            <Box sx={{ pl: 4, pt: 1, pb: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                              {mockPersonas.map((persona) => (
-                                <Chip
-                                  key={persona.id}
-                                  label={persona.displayName}
-                                  onClick={() => !loading && performResidentLogin(persona.id)}
-                                  color="warning"
-                                  variant="outlined"
-                                  sx={{ 
-                                    cursor: loading ? 'not-allowed' : 'pointer',
-                                    '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.1) },
-                                  }}
-                                />
-                              ))}
-                            </Box>
-                          </Collapse>
-                        )}
-                      </React.Fragment>
-                    ))}
+                  {/* 測試帳號提示 */}
+                  <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), borderRadius: 2, border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                      測試帳號：
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontFamily: 'monospace', lineHeight: 1.8 }}>
+                      admin / admin123 (系統管理者)<br />
+                      family / family123 (家屬)<br />
+                      elder-care / eldercare123 (長照機構)<br />
+                      elder / elder123 (長者)
+                    </Typography>
                   </Box>
                 </Box>
               </Fade>

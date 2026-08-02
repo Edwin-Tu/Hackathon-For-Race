@@ -4,7 +4,7 @@ import AppBar from './AppBar';
 import Drawer from './Drawer';
 import BottomNav from '../components/layout/BottomNav';
 import BottomNavSheet from '../components/layout/BottomNavSheet';
-import { Box, Snackbar, Alert, Fade, useMediaQuery } from '@mui/material';
+import { Box, Snackbar, Alert, Fade } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useRouter } from 'next/router';
 
@@ -26,8 +26,7 @@ function isTokenExpired(token: string | null): boolean {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const router = useRouter();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [sessionExpired, setSessionExpired] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -36,7 +35,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 檢查 Token 過期
   useEffect(() => {
     setMounted(true);
-    
+
     // 登入頁面不需要檢查
     if (router.pathname === '/login') return;
 
@@ -76,6 +75,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMobileOpen(!mobileOpen);
   };
 
+  // 長者端使用全螢幕介面（隱藏共用 AppBar / Drawer / BottomNav）
+  if (router.pathname === '/resident/voice') {
+    return (
+      <>
+        {children}
+        <Snackbar
+          open={sessionExpired}
+          autoHideDuration={5000}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          slots={{ transition: Fade }}
+        >
+          <Alert
+            severity="warning"
+            variant="filled"
+            sx={{ boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}
+          >
+            登入已過期，將自動重導至登入頁面...
+          </Alert>
+        </Snackbar>
+      </>
+    );
+  }
+
   // 登入頁面使用簡化 Layout
   if (router.pathname === '/login') {
     return (
@@ -89,11 +111,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             slots={{ transition: Fade }}
           >
-            <Alert 
-              severity="warning" 
+            <Alert
+              severity="warning"
               onClose={() => setSessionExpired(false)}
               variant="filled"
-              sx={{ 
+              sx={{
                 width: '100%',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
               }}
@@ -109,22 +131,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar onMenuClick={handleDrawerToggle} />
-      <Drawer 
-        mobileOpen={mobileOpen} 
-        onClose={() => setMobileOpen(false)} 
-      />
-      
-      <Box 
-        component="main" 
-        sx={{ 
-          flexGrow: 1, 
+      <Drawer mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
           p: { xs: 2, sm: 3 },
           pt: { xs: 2, sm: 3 },
-          pb: { xs: 9, sm: 3 },  // 手機版增加底部空間給 BottomNav (56px + 16px)
+          pb: { xs: 9, sm: 3 }, // 手機版增加底部空間給 BottomNav (56px + 16px)
           mt: 8,
-          width: { 
-            xs: '100%', 
-            md: `calc(100% - ${drawerWidth}px)` 
+          width: {
+            xs: '100%',
+            md: `calc(100% - ${drawerWidth}px)`,
           },
           transition: theme.transitions.create(['width', 'margin'], {
             easing: theme.transitions.easing.sharp,
@@ -135,9 +154,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         }}
       >
         <Fade in={mounted} timeout={400}>
-          <Box>
-            {children}
-          </Box>
+          <Box>{children}</Box>
         </Fade>
       </Box>
 
@@ -148,10 +165,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         slots={{ transition: Fade }}
       >
-        <Alert 
+        <Alert
           severity="warning"
           variant="filled"
-          sx={{ 
+          sx={{
             boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           }}
         >
@@ -161,10 +178,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 手機版底部導航 */}
       <BottomNav onMoreClick={() => setMoreSheetOpen(true)} />
-      <BottomNavSheet 
-        open={moreSheetOpen} 
-        onClose={() => setMoreSheetOpen(false)} 
-      />
+      <BottomNavSheet open={moreSheetOpen} onClose={() => setMoreSheetOpen(false)} />
     </Box>
   );
 }

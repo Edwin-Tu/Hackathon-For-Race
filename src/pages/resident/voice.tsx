@@ -1,558 +1,871 @@
 'use client';
-import React, { useState, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Container,
-  Typography,
-  Box,
-  Paper,
-  IconButton,
-  CircularProgress,
-  Chip,
-  Avatar,
-  Divider,
   Alert,
-  Fade,
-  Grow,
-  LinearProgress,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Drawer,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Snackbar,
+  TextField,
+  Typography,
 } from '@mui/material';
-import { useTheme, alpha, keyframes } from '@mui/material/styles';
-import MicIcon from '@mui/icons-material/Mic';
-import MicOffIcon from '@mui/icons-material/MicOff';
-import StopIcon from '@mui/icons-material/Stop';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import PersonIcon from '@mui/icons-material/Person';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import GraphicEqIcon from '@mui/icons-material/GraphicEq';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { keyframes } from '@mui/material/styles';
+import { useRouter } from 'next/router';
+import CloseIcon from '@mui/icons-material/Close';
+import LogoutIcon from '@mui/icons-material/Logout';
+import MenuIcon from '@mui/icons-material/Menu';
+import SettingsIcon from '@mui/icons-material/Settings';
+import { getUserInfo } from '../../utils/auth';
 
-// 動畫定義
-const ripple = keyframes`
-  0% { transform: scale(1); opacity: 0.8; }
-  100% { transform: scale(2.5); opacity: 0; }
-`;
+// ══════════════════════════════════════════════
+// 可更換的提醒 GIF（後台 / 家屬端可在這裡替換或擴充）
+// ══════════════════════════════════════════════
+const REMINDER_GIFS = [
+  { url: 'https://media.giphy.com/media/l0HlBO7eyXzSZkJri/giphy.gif', label: '貼心小美' },
+  { url: 'https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif', label: '活力小志' },
+  { url: 'https://media.giphy.com/media/xT9IgG50Lg7russbDa/giphy.gif', label: '溫暖大明' },
+];
 
-const pulse = keyframes`
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-`;
-
-const wave = keyframes`
-  0%, 100% { height: 8px; }
-  50% { height: 24px; }
-`;
-
-// 對話訊息類型
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  transcriptConfidence?: number;
-  toolCalls?: ToolCall[];
+// ══════════════════════════════════════════════
+// 後台 AI 排程（目前於前端模擬，之後可改為 API / SSE 推送）
+// ══════════════════════════════════════════════
+interface QuestionScene {
+  kind: 'question';
+  speaker?: { name: string; gifUrl: string };
+  question: string;
+  yesFeedback: string;
+  noFeedback: string;
 }
 
-// 工具呼叫類型
-interface ToolCall {
-  name: string;
-  status: 'proposed' | 'executing' | 'succeeded' | 'failed';
-  result?: string;
+interface ReminderScene {
+  kind: 'reminder';
+  title: string;
+  message: string;
+  duration: number;
 }
 
-// 工具圖示
-const toolIcons: Record<string, React.ReactElement> = {
-  create_care_event: <CheckCircleIcon />,
-  create_reminder: <AutoAwesomeIcon />,
-  get_user_schedule: <GraphicEqIcon />,
-  create_care_alert: <ErrorIcon />,
-};
+interface WaitScene {
+  kind: 'wait';
+  duration: number;
+}
 
-export default function VoiceInteraction() {
-  const theme = useTheme();
-  
-  // 錄音狀態
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+type Scene = QuestionScene | ReminderScene | WaitScene;
 
-  // 對話歷史
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: '您好！我是您的照護助理。您可以告訴我今天的狀況，或者需要我幫您記錄什麼事情。',
-      timestamp: new Date(),
-    },
-  ]);
+const AI_SCHEDULE: Scene[] = [
+  { kind: 'wait', duration: 6000 },
+  {
+    kind: 'question',
+    speaker: { name: '女兒小美', gifUrl: REMINDER_GIFS[0]!.url },
+    question: '今天早上的藥\n吃了嗎？',
+    yesFeedback: '太好了，繼續保持！',
+    noFeedback: '記得待會補吃喔！',
+  },
+  { kind: 'wait', duration: 4000 },
+  {
+    kind: 'reminder',
+    title: '服藥提醒',
+    message: '記得喝口水，準備吃下一餐的藥喔！',
+    duration: 8000,
+  },
+  { kind: 'wait', duration: 6000 },
+  {
+    kind: 'question',
+    speaker: { name: '孫子小志', gifUrl: REMINDER_GIFS[1]!.url },
+    question: '今天有好好喝水嗎？',
+    yesFeedback: '很棒，繼續補充水分！',
+    noFeedback: '記得去倒杯水喔！',
+  },
+  { kind: 'wait', duration: 4000 },
+  {
+    kind: 'reminder',
+    title: '健康提醒',
+    message: '下午三點記得散步，活動筋骨喔！',
+    duration: 8000,
+  },
+  { kind: 'wait', duration: 6000 },
+  {
+    kind: 'question',
+    speaker: { name: '兒子大明', gifUrl: REMINDER_GIFS[2]!.url },
+    question: '今天心情還不錯嗎？',
+    yesFeedback: '太好了，保持好心情！',
+    noFeedback: '沒關係，我在這裡陪著您！',
+  },
+  { kind: 'wait', duration: 4000 },
+];
 
-  // 目前的轉錄文字
-  const [transcript, setTranscript] = useState('');
-  const [error, setError] = useState<string | null>(null);
+type View =
+  | { type: 'blank' }
+  | { type: 'question'; scene: QuestionScene }
+  | { type: 'reminder'; scene: ReminderScene };
 
-  // 音訊相關 refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+const TITLE_OPTIONS = ['👴 爺爺', '👵 奶奶', '🧑 先生', '👩 女士', '🙂 其他'];
+const FONT_OPTIONS = [
+  { key: 'small', label: '小' },
+  { key: 'medium', label: '中' },
+  { key: 'large', label: '大' },
+];
 
-  // 滾動到最新訊息
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return { icon: '🌅', text: '早安' };
+  if (h >= 12 && h < 18) return { icon: '☀️', text: '午安' };
+  return { icon: '🌙', text: '晚安' };
+}
 
-  // 開始錄音
-  const startRecording = async () => {
-    try {
-      setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+const sosPulse = keyframes`
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 20px rgba(220,38,38,0.6); }
+  50% { transform: scale(1.08); box-shadow: 0 4px 32px rgba(220,38,38,0.9); }
+`;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach((track) => track.stop());
-        await processAudio(audioBlob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      setError('無法存取麥克風，請確認已授權麥克風權限。');
-      console.error('錄音錯誤:', err);
-    }
-  };
-
-  // 停止錄音
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  // 處理音訊（送至 Whisper 轉錄）
-  const processAudio = async (audioBlob: Blob) => {
-    setIsProcessing(true);
-    setTranscript('正在辨識語音...');
-
-    try {
-      // 模擬 Whisper 轉錄結果
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const mockTranscripts = [
-        '我今天早上八點吃過藥了',
-        '下午有出去散步半小時',
-        '明天下午三點要回診，幫我記得',
-        '今天有什麼事情？',
-        '我有點不舒服，想通知照護人員',
-      ];
-      const mockText = mockTranscripts[Math.floor(Math.random() * mockTranscripts.length)] ?? '';
-
-      setTranscript(mockText);
-
-      // 新增使用者訊息
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: mockText,
-        timestamp: new Date(),
-        transcriptConfidence: 0.95,
-      };
-      setMessages((prev) => [...prev, userMessage]);
-
-      // 處理 Agent 回應
-      await processAgentResponse(mockText);
-    } catch (err) {
-      setError('語音辨識失敗，請重試。');
-      console.error('處理音訊錯誤:', err);
-    } finally {
-      setIsProcessing(false);
-      setTranscript('');
-    }
-  };
-
-  // 處理 Agent 回應
-  const processAgentResponse = async (userInput: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    let responseContent = '';
-    let toolCalls: ToolCall[] = [];
-
-    if (userInput.includes('吃過藥') || userInput.includes('服藥')) {
-      toolCalls = [{ name: 'create_care_event', status: 'succeeded', result: '已記錄用藥事件' }];
-      responseContent = '好的，已經幫您記錄今天早上八點的用藥紀錄。';
-    } else if (userInput.includes('散步') || userInput.includes('運動')) {
-      toolCalls = [{ name: 'create_care_event', status: 'succeeded', result: '已記錄活動事件' }];
-      responseContent = '好的，已記錄您今天下午散步半小時的活動紀錄。保持運動很棒！';
-    } else if (userInput.includes('回診') || userInput.includes('提醒')) {
-      toolCalls = [{ name: 'create_reminder', status: 'succeeded', result: '已建立提醒' }];
-      responseContent = '好的，已經幫您設定明天下午三點的回診提醒。需要我在出發前半小時再提醒您嗎？';
-    } else if (userInput.includes('什麼事') || userInput.includes('行程')) {
-      toolCalls = [{ name: 'get_user_schedule', status: 'succeeded', result: '查詢成功' }];
-      responseContent = '讓我查看一下...今天下午兩點有復健課程，晚上六點記得服用降血壓藥。';
-    } else if (userInput.includes('不舒服') || userInput.includes('通知照護')) {
-      toolCalls = [{ name: 'create_care_alert', status: 'succeeded', result: '已發送警示' }];
-      responseContent = '我已經通知照護人員您的狀況。請您先坐下休息，照護人員很快會過來。請問是哪裡不舒服？';
-    } else {
-      responseContent = '好的，我明白了。還有什麼需要我幫忙的嗎？';
-    }
-
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: responseContent,
-      timestamp: new Date(),
-      toolCalls,
-    };
-
-    setMessages((prev) => [...prev, assistantMessage]);
-    scrollToBottom();
-
-    // 播放 TTS
-    await speakText(responseContent);
-  };
-
-  // TTS 語音播放
-  const speakText = async (text: string) => {
-    if ('speechSynthesis' in window) {
-      setIsSpeaking(true);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-TW';
-      utterance.rate = 0.9;
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  // 停止 TTS
-  const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
-  };
-
-  // 音波動畫元件
-  const SoundWave = () => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: 24 }}>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Box
-          key={i}
-          sx={{
-            width: 4,
-            bgcolor: 'primary.main',
-            borderRadius: 2,
-            animation: `${wave} 0.8s ease-in-out infinite`,
-            animationDelay: `${i * 0.1}s`,
-          }}
-        />
-      ))}
-    </Box>
-  );
-
+// ══════════════════════════════════════════════
+// 二選一互動卡（是 / 否 大按鈕）
+// ══════════════════════════════════════════════
+function DualChoiceCard({
+  scene,
+  busy,
+  feedback,
+  onAnswer,
+}: {
+  scene: QuestionScene;
+  busy: boolean;
+  feedback: { value: 'yes' | 'no'; text: string } | null;
+  onAnswer: (value: 'yes' | 'no') => void;
+}) {
   return (
-    <Container maxWidth="md" sx={{ py: 3 }}>
-      {/* 頁面標題 */}
-      <Fade in timeout={300}>
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-            <Avatar 
-              sx={{ 
-                bgcolor: theme.palette.primary.main,
-                width: 48,
-                height: 48,
-              }}
-            >
-              <SmartToyIcon sx={{ fontSize: 28 }} />
-            </Avatar>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                語音互動
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                按下麥克風按鈕開始說話，系統會記錄您的生活事件並回覆
-              </Typography>
-            </Box>
+    <Box
+      sx={{
+        borderRadius: '24px',
+        overflow: 'hidden',
+        border: '2px solid',
+        borderColor: 'divider',
+        boxShadow: '0 6px 28px rgba(0,0,0,0.10)',
+        bgcolor: '#fff',
+      }}
+    >
+      {scene.speaker && (
+        <Box sx={{ position: 'relative', bgcolor: '#0f172a', height: 200, overflow: 'hidden' }}>
+          <img
+            src={scene.speaker.gifUrl}
+            alt={scene.speaker.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.75))',
+              p: '1.2rem 1.4rem 0.8rem',
+            }}
+          >
+            <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, color: '#fbbf24' }}>
+              {scene.speaker.name}
+            </Typography>
+            <Typography sx={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)' }}>
+              想問您：
+            </Typography>
           </Box>
         </Box>
-      </Fade>
+      )}
 
-      {/* 錯誤提示 */}
-      <Fade in={!!error}>
-        <Box>
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ mb: 2 }} 
-              onClose={() => setError(null)}
-              variant="filled"
-            >
-              {error}
-            </Alert>
-          )}
-        </Box>
-      </Fade>
-
-      {/* 對話歷史 */}
-      <Grow in timeout={400}>
-        <Paper
+      <Box sx={{ bgcolor: '#1e293b', px: 3, py: 2.5 }}>
+        <Typography
           sx={{
-            height: '50vh',
-            overflow: 'auto',
-            p: 3,
-            mb: 3,
-            bgcolor: alpha(theme.palette.background.default, 0.5),
-            border: `1px solid ${theme.palette.divider}`,
+            fontSize: '1.9rem',
+            fontWeight: 900,
+            color: '#fff',
+            lineHeight: 1.4,
+            whiteSpace: 'pre-line',
+            textAlign: 'center',
           }}
         >
-          {messages.map((msg, index) => (
-            <Fade in timeout={300} key={msg.id}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                  mb: 3,
-                  gap: 1.5,
-                }}
-              >
-                <Avatar
+          {scene.question}
+        </Typography>
+      </Box>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 150 }}>
+        <Button
+          onClick={() => onAnswer('yes')}
+          disabled={busy}
+          sx={{
+            height: 150,
+            borderRadius: 0,
+            flexDirection: 'column',
+            gap: 0.5,
+            bgcolor: '#16a34a',
+            color: '#fff',
+            '&:hover': { bgcolor: '#15803d' },
+            '&.Mui-disabled': { bgcolor: '#4ade80', color: '#fff', opacity: 0.9 },
+          }}
+        >
+          <Box component="span" sx={{ fontSize: '3.5rem', lineHeight: 1 }}>
+            ⭕
+          </Box>
+          <Box component="span" sx={{ fontSize: '2.2rem', fontWeight: 900, lineHeight: 1.2 }}>
+            是
+          </Box>
+        </Button>
+        <Button
+          onClick={() => onAnswer('no')}
+          disabled={busy}
+          sx={{
+            height: 150,
+            borderRadius: 0,
+            borderLeft: '3px solid rgba(255,255,255,0.3)',
+            flexDirection: 'column',
+            gap: 0.5,
+            bgcolor: '#dc2626',
+            color: '#fff',
+            '&:hover': { bgcolor: '#b91c1c' },
+            '&.Mui-disabled': { bgcolor: '#f87171', color: '#fff', opacity: 0.9 },
+          }}
+        >
+          <Box component="span" sx={{ fontSize: '3.5rem', lineHeight: 1 }}>
+            ❌
+          </Box>
+          <Box component="span" sx={{ fontSize: '2.2rem', fontWeight: 900, lineHeight: 1.2 }}>
+            否
+          </Box>
+        </Button>
+      </Box>
+
+      {feedback && (
+        <Box
+          sx={{
+            bgcolor: feedback.value === 'yes' ? '#dcfce7' : '#fee2e2',
+            p: 2,
+            textAlign: 'center',
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: '1.7rem',
+              fontWeight: 900,
+              color: feedback.value === 'yes' ? '#15803d' : '#dc2626',
+            }}
+          >
+            {feedback.value === 'yes' ? '⭕ 已選擇：是' : '❌ 已選擇：否'} — {feedback.text}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ══════════════════════════════════════════════
+// GIF 提醒卡（後台 AI 提醒時顯示，可更換 GIF）
+// ══════════════════════════════════════════════
+function ReminderCard({
+  scene,
+  gifUrl,
+  onDismiss,
+}: {
+  scene: ReminderScene;
+  gifUrl: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <Box
+      sx={{
+        borderRadius: '24px',
+        overflow: 'hidden',
+        border: '2px solid',
+        borderColor: 'divider',
+        boxShadow: '0 6px 28px rgba(0,0,0,0.10)',
+        bgcolor: '#fff',
+      }}
+    >
+      <Box sx={{ position: 'relative', bgcolor: '#0f172a', height: 280, overflow: 'hidden' }}>
+        <img
+          src={gifUrl}
+          alt="提醒動畫"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      </Box>
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography sx={{ fontSize: '1.7rem', fontWeight: 900, color: '#1e40af' }}>
+          🔔 {scene.title}
+        </Typography>
+        <Typography sx={{ fontSize: '1.3rem', fontWeight: 700, color: 'text.secondary', mt: 1 }}>
+          {scene.message}
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={onDismiss}
+          sx={{ mt: 2.5, px: 5, py: 1.5, fontSize: '1.4rem', fontWeight: 800, borderRadius: 3 }}
+        >
+          我知道了
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+// ══════════════════════════════════════════════
+// SOS 全螢幕畫面
+// ══════════════════════════════════════════════
+function SOSScreen({ onCancel }: { onCancel: () => void }) {
+  const [triggered, setTriggered] = useState<Record<number, boolean>>({});
+  const ACTIONS = [
+    { label: '📞 通知家屬 — 女兒小美' },
+    { label: '👩‍⚕️ 通知照護員' },
+    { label: '🚑 撥打緊急聯絡人' },
+  ];
+  return (
+    <Box
+      sx={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1300,
+        bgcolor: '#dc2626',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2,
+        p: 3,
+      }}
+    >
+      <Box sx={{ fontSize: '5rem', animation: `${sosPulse} 1s infinite` }}>🆘</Box>
+      <Typography sx={{ fontSize: '2.6rem', fontWeight: 900, color: '#fff', textAlign: 'center' }}>
+        緊急求助中
+      </Typography>
+      <Typography sx={{ fontSize: '1.5rem', color: 'rgba(255,255,255,0.85)', textAlign: 'center' }}>
+        請點下方按鈕通知相關人員
+        <br />
+        請保持冷靜
+      </Typography>
+      <Box
+        sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', maxWidth: 380 }}
+      >
+        {ACTIONS.map((a, i) => {
+          const done = !!triggered[i];
+          return (
+            <Button
+              key={i}
+              onClick={() => !done && setTriggered((p) => ({ ...p, [i]: true }))}
+              disabled={done}
+              sx={{
+                width: '100%',
+                borderRadius: 3,
+                py: 2,
+                px: 3,
+                justifyContent: 'space-between',
+                bgcolor: done ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)',
+                border: `2px solid ${done ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)'}`,
+                color: '#fff',
+                fontSize: '1.5rem',
+                fontWeight: 900,
+                textTransform: 'none',
+                '&.Mui-disabled': { color: '#fff', opacity: 1 },
+              }}
+            >
+              <span>{a.label}</span>
+              <span style={{ fontSize: '1.8rem' }}>{done ? '✅' : '▶'}</span>
+            </Button>
+          );
+        })}
+      </Box>
+      {Object.keys(triggered).length > 0 && (
+        <Box
+          sx={{
+            bgcolor: 'rgba(255,255,255,0.2)',
+            borderRadius: 3,
+            p: 2,
+            px: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
+            ✅ 已通知 {Object.keys(triggered).length} 位 — 幫助正在趕來！
+          </Typography>
+        </Box>
+      )}
+      <Button
+        variant="contained"
+        onClick={onCancel}
+        sx={{
+          mt: 1,
+          px: 5,
+          py: 1.5,
+          fontSize: '1.5rem',
+          fontWeight: 800,
+          borderRadius: 3,
+          bgcolor: 'rgba(255,255,255,0.2)',
+          color: '#fff',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+        }}
+      >
+        取消 / 我沒事了
+      </Button>
+    </Box>
+  );
+}
+
+export default function ElderVoice() {
+  const router = useRouter();
+
+  // 畫面狀態：空白 / 二選一 / GIF 提醒
+  const [view, setView] = useState<View>({ type: 'blank' });
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ value: 'yes' | 'no'; text: string } | null>(null);
+
+  // 側邊欄 / 對話框
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [sosActive, setSosActive] = useState(false);
+  const [toast, setToast] = useState('');
+
+  // 帳號 / 個人化設定
+  const [userName, setUserName] = useState('王');
+  const [userTitle, setUserTitle] = useState('👵 奶奶');
+  const [fontSize, setFontSize] = useState('medium');
+  const [gifKey, setGifKey] = useState(REMINDER_GIFS[0]!.url);
+
+  // 排程器 refs
+  const sceneIndexRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fontScale = fontSize === 'small' ? 0.85 : fontSize === 'large' ? 1.18 : 1;
+
+  // 讀取個人化設定
+  useEffect(() => {
+    const info = getUserInfo(localStorage.getItem('auth'));
+    setUserName(localStorage.getItem('userName') || info?.displayName || '王');
+    setUserTitle(localStorage.getItem('userTitle') || '👵 奶奶');
+    setFontSize(localStorage.getItem('fontSize') || 'medium');
+    setGifKey(localStorage.getItem('reminderGif') || REMINDER_GIFS[0]!.url);
+  }, []);
+
+  // 字體縮放套用到根元素
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontScale * 16}px`;
+    return () => {
+      document.documentElement.style.fontSize = '';
+    };
+  }, [fontScale]);
+
+  // 依序執行後台 AI 排程
+  function renderScene(index: number) {
+    const scene = AI_SCHEDULE[index % AI_SCHEDULE.length]!;
+    sceneIndexRef.current = index;
+    setBusy(false);
+    setFeedback(null);
+    if (scene.kind === 'wait') {
+      setView({ type: 'blank' });
+      timerRef.current = setTimeout(() => renderScene(index + 1), scene.duration);
+    } else if (scene.kind === 'question') {
+      setView({ type: 'question', scene });
+    } else {
+      setView({ type: 'reminder', scene });
+      timerRef.current = setTimeout(() => renderScene(index + 1), scene.duration);
+    }
+  }
+
+  useEffect(() => {
+    renderScene(0);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 回答是 / 否（模擬回傳後台 AI）
+  const handleAnswer = (value: 'yes' | 'no') => {
+    if (busy || view.type !== 'question') return;
+    const scene = view.scene;
+    setBusy(true);
+    const text = value === 'yes' ? scene.yesFeedback : scene.noFeedback;
+    setFeedback({ value, text });
+    setToast(
+      value === 'yes' ? '已選擇「是」，回覆已傳送給照護人員' : '已選擇「否」，回覆已傳送給照護人員',
+    );
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => renderScene(sceneIndexRef.current + 1), 2200);
+  };
+
+  const dismissReminder = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    renderScene(sceneIndexRef.current + 1);
+  };
+
+  const saveSettings = () => {
+    localStorage.setItem('userName', userName);
+    localStorage.setItem('userTitle', userTitle);
+    localStorage.setItem('fontSize', fontSize);
+    localStorage.setItem('reminderGif', gifKey);
+    setSettingsOpen(false);
+    setToast('設定已儲存');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth');
+    document.cookie = 'auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    router.push('/login');
+  };
+
+  if (sosActive) {
+    return <SOSScreen onCancel={() => setSosActive(false)} />;
+  }
+
+  const greeting = getGreeting();
+
+  return (
+    <Box
+      sx={{ minHeight: '100vh', bgcolor: '#f0f7ff', fontFamily: '"Microsoft JhengHei", system-ui' }}
+    >
+      {/* 頂部列 */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          bgcolor: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
+          px: 2,
+          py: 1.2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          maxWidth: 640,
+          mx: 'auto',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
+        <IconButton
+          onClick={() => setSidebarOpen(true)}
+          sx={{ bgcolor: '#f1f5f9', borderRadius: 2, p: 1.5, '&:hover': { bgcolor: '#e2e8f0' } }}
+        >
+          <MenuIcon sx={{ fontSize: 32 }} />
+        </IconButton>
+        <Typography sx={{ fontSize: '1.4rem', fontWeight: 900, color: '#1e293b' }}>
+          {greeting.icon} {userName} {userTitle}
+        </Typography>
+        <Button
+          onClick={() => setSosActive(true)}
+          sx={{
+            bgcolor: '#fee2e2',
+            border: '2px solid #fca5a5',
+            borderRadius: 2,
+            px: 1.6,
+            py: 0.8,
+            fontSize: '1.2rem',
+            fontWeight: 800,
+            color: '#dc2626',
+            minWidth: 0,
+            '&:hover': { bgcolor: '#fecaca' },
+          }}
+        >
+          🆘
+        </Button>
+      </Box>
+
+      {/* 主內容：常態為空白，AI 事件時顯示卡片 */}
+      <Box
+        sx={{
+          maxWidth: 640,
+          mx: 'auto',
+          px: 2,
+          py: 2,
+          minHeight: 'calc(100vh - 76px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {view.type === 'question' && (
+          <DualChoiceCard
+            scene={view.scene}
+            busy={busy}
+            feedback={feedback}
+            onAnswer={handleAnswer}
+          />
+        )}
+        {view.type === 'reminder' && (
+          <ReminderCard scene={view.scene} gifUrl={gifKey} onDismiss={dismissReminder} />
+        )}
+      </Box>
+
+      {/* 隱藏側邊欄：帳號設置、登出 */}
+      <Drawer
+        anchor="left"
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        slotProps={{ paper: { sx: { width: 300, bgcolor: '#0f172a' } } }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* 帳號資訊 */}
+          <Box
+            sx={{
+              p: '2.5rem 1.5rem 1.5rem',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              background: 'linear-gradient(180deg, #1d4ed8 0%, #1e293b 100%)',
+            }}
+          >
+            <Box
+              sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box
                   sx={{
-                    bgcolor: msg.role === 'user' ? 'primary.main' : 'secondary.main',
-                    width: 40,
-                    height: 40,
+                    width: 52,
+                    height: 52,
+                    borderRadius: '50%',
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.6rem',
                   }}
                 >
-                  {msg.role === 'user' ? <PersonIcon /> : <SmartToyIcon />}
-                </Avatar>
-                <Box sx={{ maxWidth: '75%' }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2,
-                      bgcolor: msg.role === 'user' 
-                        ? theme.palette.primary.main
-                        : theme.palette.background.paper,
-                      color: msg.role === 'user' 
-                        ? theme.palette.primary.contrastText 
-                        : theme.palette.text.primary,
-                      borderRadius: 3,
-                      borderTopRightRadius: msg.role === 'user' ? 4 : 24,
-                      borderTopLeftRadius: msg.role === 'user' ? 24 : 4,
-                      boxShadow: msg.role === 'user'
-                        ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`
-                        : '0 2px 8px rgba(0,0,0,0.08)',
-                    }}
-                  >
-                    <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.7 }}>
-                      {msg.content}
-                    </Typography>
-
-                    {/* 顯示工具呼叫狀態 */}
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${alpha(theme.palette.divider, 0.3)}` }}>
-                        {msg.toolCalls.map((tool, idx) => (
-                          <Chip
-                            key={idx}
-                            size="small"
-                            icon={toolIcons[tool.name] || <AutoAwesomeIcon />}
-                            label={tool.result || tool.name}
-                            color={tool.status === 'succeeded' ? 'success' : 'default'}
-                            variant="outlined"
-                            sx={{ 
-                              mr: 0.5, 
-                              mt: 0.5,
-                              bgcolor: alpha(theme.palette.success.main, 0.1),
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    )}
-                  </Paper>
-                  <Typography 
-                    variant="caption" 
-                    color="text.secondary" 
-                    sx={{ 
-                      ml: msg.role === 'user' ? 0 : 1.5,
-                      mr: msg.role === 'user' ? 1.5 : 0,
-                      mt: 0.5,
-                      display: 'block',
-                      textAlign: msg.role === 'user' ? 'right' : 'left',
-                    }}
-                  >
-                    {msg.timestamp.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
-                    {msg.transcriptConfidence && (
-                      <span> · 辨識度 {Math.round(msg.transcriptConfidence * 100)}%</span>
-                    )}
+                  {userTitle?.split(' ')[0] || '👤'}
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: '1.5rem', fontWeight: 900, color: '#fff' }}>
+                    {userName || '使用者'}
+                  </Typography>
+                  <Typography sx={{ fontSize: '1rem', color: 'rgba(255,255,255,0.6)' }}>
+                    {userTitle}
                   </Typography>
                 </Box>
               </Box>
-            </Fade>
-          ))}
-          <div ref={messagesEndRef} />
-        </Paper>
-      </Grow>
+              <IconButton
+                onClick={() => setSidebarOpen(false)}
+                sx={{ bgcolor: 'rgba(255,255,255,0.12)', color: '#fff', borderRadius: 2 }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </Box>
 
-      {/* 轉錄狀態顯示 */}
-      <Fade in={isProcessing || !!transcript}>
-        <Box>
-          {(isProcessing || transcript) && (
-            <Paper 
-              sx={{ 
-                p: 2, 
-                mb: 3, 
-                bgcolor: alpha(theme.palette.info.main, 0.08),
-                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+          {/* 選單 */}
+          <List sx={{ flex: 1, p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <ListItemButton
+              onClick={() => {
+                setSidebarOpen(false);
+                setSettingsOpen(true);
+              }}
+              sx={{
+                borderRadius: 3,
+                py: 1.8,
+                px: 2,
+                bgcolor: 'rgba(59,130,246,0.12)',
+                border: '1px solid rgba(59,130,246,0.4)',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                {isProcessing && <CircularProgress size={20} color="info" />}
-                <Typography variant="body2" color="info.main" sx={{ fontWeight: 500 }}>
-                  {transcript || '處理中...'}
-                </Typography>
-              </Box>
-              {isProcessing && (
-                <LinearProgress 
-                  sx={{ mt: 1.5, borderRadius: 1 }} 
-                  color="info"
-                />
-              )}
-            </Paper>
-          )}
-        </Box>
-      </Fade>
-
-      {/* 控制按鈕 */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, alignItems: 'center' }}>
-        {/* 錄音按鈕 */}
-        <Box sx={{ position: 'relative' }}>
-          {/* 錄音中的漣漪效果 */}
-          {isRecording && (
-            <>
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: 88,
-                  height: 88,
-                  borderRadius: '50%',
-                  bgcolor: alpha(theme.palette.error.main, 0.3),
-                  transform: 'translate(-50%, -50%)',
-                  animation: `${ripple} 1.5s ease-out infinite`,
+              <ListItemIcon sx={{ minWidth: 44 }}>
+                <SettingsIcon sx={{ color: '#60a5fa', fontSize: 30 }} />
+              </ListItemIcon>
+              <ListItemText
+                primary="帳號設置"
+                slotProps={{
+                  primary: { sx: { color: '#e2e8f0', fontSize: '1.4rem', fontWeight: 800 } },
                 }}
               />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: 88,
-                  height: 88,
-                  borderRadius: '50%',
-                  bgcolor: alpha(theme.palette.error.main, 0.3),
-                  transform: 'translate(-50%, -50%)',
-                  animation: `${ripple} 1.5s ease-out infinite 0.5s`,
-                }}
-              />
-            </>
-          )}
-          
-          <IconButton
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isProcessing || isSpeaking}
-            sx={{
-              width: 88,
-              height: 88,
-              bgcolor: isRecording ? 'error.main' : 'primary.main',
-              color: 'white',
-              boxShadow: isRecording 
-                ? `0 8px 24px ${alpha(theme.palette.error.main, 0.5)}`
-                : `0 8px 24px ${alpha(theme.palette.primary.main, 0.4)}`,
-              transition: 'all 0.3s ease',
-              animation: isRecording ? `${pulse} 1s ease-in-out infinite` : 'none',
-              '&:hover': {
-                bgcolor: isRecording ? 'error.dark' : 'primary.dark',
-                transform: 'scale(1.05)',
-              },
-              '&:disabled': {
-                bgcolor: 'grey.400',
-                boxShadow: 'none',
-              },
-            }}
-          >
-            {isRecording ? (
-              <StopIcon sx={{ fontSize: 40 }} />
-            ) : (
-              <MicIcon sx={{ fontSize: 40 }} />
-            )}
-          </IconButton>
-        </Box>
+            </ListItemButton>
+          </List>
 
-        {/* TTS 控制按鈕 */}
-        <Fade in={isSpeaking}>
-          <Box>
-            {isSpeaking && (
-              <IconButton
-                onClick={stopSpeaking}
-                sx={{
-                  width: 64,
-                  height: 64,
-                  bgcolor: 'warning.main',
-                  color: 'white',
-                  boxShadow: `0 6px 20px ${alpha(theme.palette.warning.main, 0.4)}`,
-                  animation: `${pulse} 1s ease-in-out infinite`,
-                  '&:hover': { 
-                    bgcolor: 'warning.dark',
-                  },
-                }}
-              >
-                <VolumeUpIcon sx={{ fontSize: 30 }} />
-              </IconButton>
-            )}
+          {/* 登出 */}
+          <Box sx={{ p: '0.8rem 1.5rem 2.5rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <Button
+              fullWidth
+              onClick={() => {
+                setSidebarOpen(false);
+                setLogoutOpen(true);
+              }}
+              sx={{
+                py: 1.6,
+                borderRadius: 3,
+                bgcolor: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                color: '#fca5a5',
+                fontSize: '1.4rem',
+                fontWeight: 800,
+                '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' },
+              }}
+            >
+              <LogoutIcon sx={{ mr: 1 }} /> 登出
+            </Button>
           </Box>
-        </Fade>
-      </Box>
+        </Box>
+      </Drawer>
 
-      {/* 狀態提示 */}
-      <Box sx={{ textAlign: 'center', mt: 3 }}>
-        <Chip
-          icon={
-            isRecording ? <GraphicEqIcon /> : 
-            isProcessing ? <CircularProgress size={16} color="inherit" /> :
-            isSpeaking ? <VolumeUpIcon /> :
-            <MicIcon />
-          }
-          label={
-            isRecording
-              ? '錄音中...說完後按停止'
-              : isProcessing
-                ? '正在處理...'
-                : isSpeaking
-                  ? '播放回覆中...'
-                  : '按下麥克風按鈕開始說話'
-          }
-          color={
-            isRecording ? 'error' : 
-            isProcessing ? 'info' : 
-            isSpeaking ? 'warning' : 
-            'default'
-          }
-          variant={isRecording || isProcessing || isSpeaking ? 'filled' : 'outlined'}
-          sx={{ 
-            px: 2, 
-            py: 2.5,
-            fontSize: '0.9rem',
-            fontWeight: 500,
-          }}
-        />
-      </Box>
-    </Container>
+      {/* 帳號設置對話框 */}
+      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: '1.5rem', fontWeight: 900 }}>👤 帳號設置</DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 3 }}>
+          {/* 姓 */}
+          <Box>
+            <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, mb: 1 }}>
+              姓名（例：王、李、陳）
+            </Typography>
+            <TextField
+              value={userName}
+              onChange={(e) => setUserName(e.target.value.slice(0, 1))}
+              slotProps={{ htmlInput: { maxLength: 1 } }}
+              fullWidth
+            />
+          </Box>
+
+          {/* 稱謂 */}
+          <Box>
+            <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, mb: 1 }}>稱謂</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+              {TITLE_OPTIONS.map((t) => (
+                <Button
+                  key={t}
+                  onClick={() => setUserTitle(t)}
+                  sx={{
+                    borderRadius: 2,
+                    py: 1.4,
+                    border: `2px solid ${userTitle === t ? '#2563eb' : '#e2e8f0'}`,
+                    bgcolor: userTitle === t ? '#eff6ff' : '#fff',
+                    color: userTitle === t ? '#1d4ed8' : '#64748b',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                  }}
+                >
+                  {t}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+
+          {/* 字體大小 */}
+          <Box>
+            <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, mb: 1 }}>
+              🔡 字體大小
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {FONT_OPTIONS.map((f) => (
+                <Button
+                  key={f.key}
+                  onClick={() => setFontSize(f.key)}
+                  sx={{
+                    flex: 1,
+                    borderRadius: 2,
+                    py: 1.4,
+                    border: `3px solid ${fontSize === f.key ? '#2563eb' : '#e2e8f0'}`,
+                    bgcolor: fontSize === f.key ? '#eff6ff' : '#fff',
+                    fontSize: f.key === 'small' ? '1rem' : f.key === 'large' ? '1.5rem' : '1.2rem',
+                    fontWeight: 900,
+                    color: fontSize === f.key ? '#1d4ed8' : '#64748b',
+                  }}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+
+          {/* 提醒 GIF（可更換） */}
+          <Box>
+            <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, mb: 1 }}>
+              🎬 提醒動畫 GIF（後台 / 家屬可替換）
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              {REMINDER_GIFS.map((g) => (
+                <Box
+                  key={g.url}
+                  onClick={() => setGifKey(g.url)}
+                  sx={{
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    p: 1,
+                    cursor: 'pointer',
+                    border: `3px solid ${gifKey === g.url ? '#2563eb' : '#e2e8f0'}`,
+                    bgcolor: gifKey === g.url ? '#eff6ff' : '#fff',
+                  }}
+                >
+                  <img
+                    src={g.url}
+                    alt={g.label}
+                    style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8 }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  <Typography
+                    sx={{ fontSize: '0.9rem', fontWeight: 700, textAlign: 'center', mt: 0.5 }}
+                  >
+                    {g.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setSettingsOpen(false)} sx={{ fontSize: '1.1rem' }}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={saveSettings}
+            sx={{ fontSize: '1.2rem', fontWeight: 800, px: 4, py: 1 }}
+          >
+            ✅ 儲存
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 登出確認 */}
+      <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '1.4rem', fontWeight: 900 }}>確認登出</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '1.2rem', color: 'text.secondary' }}>
+            確定要登出嗎？登出後需重新登入才能使用。
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setLogoutOpen(false)} sx={{ fontSize: '1.1rem' }}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              setLogoutOpen(false);
+              handleLogout();
+            }}
+            sx={{ fontSize: '1.2rem', fontWeight: 800, px: 4 }}
+          >
+            登出
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 提示訊息 */}
+      <Snackbar
+        open={!!toast}
+        autoHideDuration={2000}
+        onClose={() => setToast('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setToast('')}>
+          {toast}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 }
