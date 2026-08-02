@@ -18,6 +18,7 @@ from app.models import (
     UsageInfo,
 )
 from app.providers.base import BaseLLMProvider
+from app.repositories import CareRepository, SessionScopeError
 from app.security import AgentInputGuard
 from app.services.intent_router import IntentDecision, RequestedAction, classify_intent
 from app.skills import (
@@ -108,6 +109,7 @@ class AgentService:
         gateway: ToolGateway | None = None,
         skill_registry: SkillRegistry | None = None,
         input_guard: AgentInputGuard | None = None,
+        repository: CareRepository | None = None,
     ) -> None:
         self._provider = provider
         self._gateway = gateway or ToolGateway()
@@ -116,6 +118,7 @@ class AgentService:
             enabled=settings.INPUT_GUARD_ENABLED,
             fail_closed=settings.INPUT_GUARD_FAIL_CLOSED,
         )
+        self._repository = repository or self._gateway.repository
 
     def _create_demo_auth_context(
         self,
@@ -137,6 +140,95 @@ class AgentService:
             current_datetime=now.isoformat(timespec="seconds"),
             current_date=now.date().isoformat(),
             skill_instructions=skills.to_prompt_block(),
+        )
+
+    @staticmethod
+    def _conversation_persona_id(auth_context: AuthContext) -> str:
+        if auth_context.active_persona_id:
+            return auth_context.active_persona_id
+        if len(auth_context.authorized_persona_ids) == 1:
+            return next(iter(auth_context.authorized_persona_ids))
+        raise SessionScopeError(
+            "conversation requires exactly one trusted persona scope"
+        )
+
+    def _load_conversation_history(
+        self,
+        auth_context: AuthContext,
+    ) -> list[dict[str, Any]]:
+        if not settings.CONVERSATION_HISTORY_ENABLED:
+            return []
+        persona_id = self._conversation_persona_id(auth_context)
+        self._repository.ensure_conversation_session(
+            session_id=auth_context.session_id,
+            user_id=auth_context.requester_id,
+            persona_id=persona_id,
+        )
+        history = self._repository.list_recent_conversation_messages(
+            session_id=auth_context.session_id,
+            user_id=auth_context.requester_id,
+            persona_id=persona_id,
+            max_messages=max(0, settings.CONVERSATION_HISTORY_MAX_MESSAGES),
+            max_chars=max(1, settings.CONVERSATION_HISTORY_MAX_CHARS),
+        )
+        return [
+            {"role": message.role, "content": message.content}
+            for message in history
+            if message.content.strip()
+        ]
+
+    def _persist_conversation_turn(
+        self,
+        *,
+        auth_context: AuthContext,
+        user_message: str,
+        assistant_message: str,
+        input_type: str = "text",
+    ) -> None:
+        if not settings.CONVERSATION_HISTORY_ENABLED:
+            return
+        if not user_message.strip() and not assistant_message.strip():
+            return
+        persona_id = self._conversation_persona_id(auth_context)
+        try:
+            self._repository.append_conversation_turn(
+                session_id=auth_context.session_id,
+                user_id=auth_context.requester_id,
+                persona_id=persona_id,
+                request_id=auth_context.request_id,
+                user_message=user_message,
+                assistant_message=assistant_message,
+                input_type=input_type,
+            )
+        except Exception:
+            # A completed tool operation remains completed even if conversation
+            # journaling fails. The error is logged without message contents.
+            logger.exception(
+                "Conversation turn persistence failed request_id=%s session_id=%s",
+                auth_context.request_id,
+                auth_context.session_id,
+            )
+
+    @staticmethod
+    def _conversation_error_response(
+        *,
+        session_id: str,
+        input_guard: InputGuardEvidence,
+        error_type: str,
+        message: str,
+    ) -> ChatResponse:
+        return ChatResponse(
+            success=False,
+            reply=message,
+            model="",
+            session_id=session_id,
+            usage=UsageInfo(),
+            error_type=error_type,
+            error_message=message,
+            operation_completed=False,
+            action_status=ActionStatus.DENIED,
+            tool_events=[],
+            input_guard=input_guard,
         )
 
     def _build_tool_configs(
@@ -353,12 +445,43 @@ class AgentService:
                     auth_context,
                     session_id,
                     input_guard=guard_outcome.evidence,
+                    user_message=guarded_message,
+                    input_type=request.input_type,
                 )
             return await self._handle_confirmation(
                 pending_token,
                 auth_context,
                 session_id,
                 input_guard=guard_outcome.evidence,
+                user_message=guarded_message,
+                input_type=request.input_type,
+            )
+
+        try:
+            conversation_history = self._load_conversation_history(auth_context)
+        except SessionScopeError as exc:
+            logger.warning(
+                "Conversation scope denied request_id=%s session_id=%s",
+                request_id,
+                session_id,
+            )
+            return self._conversation_error_response(
+                session_id=session_id,
+                input_guard=guard_outcome.evidence,
+                error_type="SESSION_SCOPE_DENIED",
+                message=str(exc),
+            )
+        except Exception:
+            logger.exception(
+                "Conversation history load failed request_id=%s session_id=%s",
+                request_id,
+                session_id,
+            )
+            return self._conversation_error_response(
+                session_id=session_id,
+                input_guard=guard_outcome.evidence,
+                error_type="CONVERSATION_STORAGE_ERROR",
+                message="目前無法載入安全對話上下文，請稍後再試。",
             )
 
         self._gateway.reset_turn_count(request_id)
@@ -398,7 +521,8 @@ class AgentService:
         )
 
         messages: list[dict[str, Any]] = [
-            {"role": "user", "content": guarded_message}
+            *conversation_history,
+            {"role": "user", "content": guarded_message},
         ]
         total_usage = UsageInfo()
         tools_executed = 0
@@ -446,6 +570,12 @@ class AgentService:
                     result.text,
                     operation_completed,
                     action_status,
+                )
+                self._persist_conversation_turn(
+                    auth_context=auth_context,
+                    user_message=guarded_message,
+                    assistant_message=reply,
+                    input_type=request.input_type,
                 )
                 return ChatResponse(
                     success=True,
@@ -508,9 +638,18 @@ class AgentService:
                             idempotency_replayed=False,
                         )
                         tool_events.append(mismatch_event)
+                        mismatch_reply = (
+                            "工具選擇與您的需求不一致，因此這項操作尚未完成。請再試一次。"
+                        )
+                        self._persist_conversation_turn(
+                            auth_context=auth_context,
+                            user_message=guarded_message,
+                            assistant_message=mismatch_reply,
+                            input_type=request.input_type,
+                        )
                         return ChatResponse(
                             success=True,
-                            reply="工具選擇與您的需求不一致，因此這項操作尚未完成。請再試一次。",
+                            reply=mismatch_reply,
                             model=result.model,
                             session_id=session_id,
                             usage=total_usage,
@@ -531,9 +670,18 @@ class AgentService:
                     tool_events.append(self._make_tool_event(gateway_result))
 
                     if gateway_result.status == ToolStatus.AWAITING_CONFIRMATION:
+                        confirmation_reply = (
+                            f"需要您的確認：{gateway_result.confirmation_summary}"
+                        )
+                        self._persist_conversation_turn(
+                            auth_context=auth_context,
+                            user_message=guarded_message,
+                            assistant_message=confirmation_reply,
+                            input_type=request.input_type,
+                        )
                         return ChatResponse(
                             success=True,
-                            reply=f"需要您的確認：{gateway_result.confirmation_summary}",
+                            reply=confirmation_reply,
                             model=result.model,
                             session_id=session_id,
                             usage=total_usage,
@@ -562,13 +710,20 @@ class AgentService:
             intent, tool_events
         )
         logger.warning("Max Converse rounds exceeded for session %s", session_id)
+        final_reply = (
+            "工具已執行，但我無法完成最後回覆。"
+            if operation_completed
+            else "抱歉，處理過程較為複雜，請稍後再試或簡化您的請求。"
+        )
+        self._persist_conversation_turn(
+            auth_context=auth_context,
+            user_message=guarded_message,
+            assistant_message=final_reply,
+            input_type=request.input_type,
+        )
         return ChatResponse(
             success=True,
-            reply=(
-                "工具已執行，但我無法完成最後回覆。"
-                if operation_completed
-                else "抱歉，處理過程較為複雜，請稍後再試或簡化您的請求。"
-            ),
+            reply=final_reply,
             model=last_model,
             session_id=session_id,
             usage=total_usage,
@@ -585,6 +740,8 @@ class AgentService:
         session_id: str,
         *,
         input_guard: InputGuardEvidence | None = None,
+        user_message: str = "確認執行",
+        input_type: str = "text",
     ) -> ChatResponse:
         """Execute the frozen server-side ToolCall without calling Bedrock."""
         gateway_result = self._gateway.confirm_and_execute(
@@ -594,7 +751,7 @@ class AgentService:
         operation_completed = self._is_completed_write(tool_event)
 
         if operation_completed:
-            return ChatResponse(
+            response = ChatResponse(
                 success=True,
                 reply=gateway_result.message,
                 model="",
@@ -605,25 +762,32 @@ class AgentService:
                 tool_events=[tool_event],
                 input_guard=input_guard,
             )
-
-        action_status = (
-            ActionStatus.DENIED
-            if gateway_result.status == ToolStatus.DENIED
-            else ActionStatus.FAILED
+        else:
+            action_status = (
+                ActionStatus.DENIED
+                if gateway_result.status == ToolStatus.DENIED
+                else ActionStatus.FAILED
+            )
+            response = ChatResponse(
+                success=False,
+                reply=gateway_result.message or "確認失敗，這項操作尚未完成。",
+                model="",
+                session_id=session_id,
+                usage=UsageInfo(),
+                error_type=gateway_result.error_code,
+                error_message=gateway_result.message,
+                operation_completed=False,
+                action_status=action_status,
+                tool_events=[tool_event],
+                input_guard=input_guard,
+            )
+        self._persist_conversation_turn(
+            auth_context=auth_context,
+            user_message=user_message,
+            assistant_message=response.reply,
+            input_type=input_type,
         )
-        return ChatResponse(
-            success=False,
-            reply=gateway_result.message or "確認失敗，這項操作尚未完成。",
-            model="",
-            session_id=session_id,
-            usage=UsageInfo(),
-            error_type=gateway_result.error_code,
-            error_message=gateway_result.message,
-            operation_completed=False,
-            action_status=action_status,
-            tool_events=[tool_event],
-            input_guard=input_guard,
-        )
+        return response
 
     async def _handle_cancellation(
         self,
@@ -632,6 +796,8 @@ class AgentService:
         session_id: str,
         *,
         input_guard: InputGuardEvidence | None = None,
+        user_message: str = "取消操作",
+        input_type: str = "text",
     ) -> ChatResponse:
         """Cancel a pending operation without invoking Bedrock or a tool handler."""
         gateway_result = self._gateway.cancel_confirmation(
@@ -639,7 +805,7 @@ class AgentService:
         )
         tool_event = self._make_tool_event(gateway_result)
         cancelled = gateway_result.status == ToolStatus.CANCELLED
-        return ChatResponse(
+        response = ChatResponse(
             success=cancelled,
             reply=gateway_result.message,
             model="",
@@ -654,6 +820,13 @@ class AgentService:
             tool_events=[tool_event],
             input_guard=input_guard,
         )
+        self._persist_conversation_turn(
+            auth_context=auth_context,
+            user_message=user_message,
+            assistant_message=response.reply,
+            input_type=input_type,
+        )
+        return response
 
     def _make_tool_result_block_from_gateway(
         self,

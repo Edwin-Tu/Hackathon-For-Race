@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     INPUT_GUARD_ENABLED: bool = True
     INPUT_GUARD_FAIL_CLOSED: bool = True
 
+    # Durable conversation context. History is scoped to the trusted
+    # user_id + persona_id + session_id tuple and re-sent to Bedrock.
+    CONVERSATION_HISTORY_ENABLED: bool = True
+    CONVERSATION_HISTORY_MAX_MESSAGES: int = 12
+    CONVERSATION_HISTORY_MAX_CHARS: int = 12000
+
     # Minimal access control for a public cloud demo endpoint. Production must
     # replace this with Cognito/JWT; the bearer token is intentionally never
     # included in API responses or logs.

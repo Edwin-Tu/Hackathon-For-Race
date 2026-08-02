@@ -7,7 +7,13 @@ import uuid
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
-from app.repositories.base import CareEvent, Reminder, ScheduleItem
+from app.repositories.base import (
+    CareEvent,
+    ConversationMessage,
+    Reminder,
+    ScheduleItem,
+    SessionScopeError,
+)
 
 
 class InMemoryCareRepository:
@@ -18,6 +24,8 @@ class InMemoryCareRepository:
         self._reminders: dict[str, Reminder] = {}
         self._event_idempotency: dict[tuple[str, str], str] = {}
         self._reminder_idempotency: dict[tuple[str, str], str] = {}
+        self._conversation_sessions: dict[str, tuple[str, str]] = {}
+        self._conversation_messages: list[tuple[str, str, str, ConversationMessage]] = []
         self._lock = threading.RLock()
 
     def create_care_event(
@@ -188,6 +196,105 @@ class InMemoryCareRepository:
                     recovered += 1
         return recovered
 
+
+    def ensure_conversation_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+    ) -> None:
+        """Create or validate a session bound to one trusted user/persona scope."""
+        with self._lock:
+            existing = self._conversation_sessions.get(session_id)
+            scope = (user_id, persona_id)
+            if existing is not None and existing != scope:
+                raise SessionScopeError(
+                    "session_id belongs to a different user or persona"
+                )
+            self._conversation_sessions[session_id] = scope
+
+    def append_conversation_turn(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        request_id: str,
+        user_message: str,
+        assistant_message: str,
+        input_type: str = "text",
+    ) -> None:
+        del request_id, input_type
+        self.ensure_conversation_session(
+            session_id=session_id,
+            user_id=user_id,
+            persona_id=persona_id,
+        )
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            if user_message.strip():
+                self._conversation_messages.append((
+                    session_id,
+                    user_id,
+                    persona_id,
+                    ConversationMessage(
+                        role="user",
+                        content=user_message.strip(),
+                        created_at=now,
+                    ),
+                ))
+            if assistant_message.strip():
+                self._conversation_messages.append((
+                    session_id,
+                    user_id,
+                    persona_id,
+                    ConversationMessage(
+                        role="assistant",
+                        content=assistant_message.strip(),
+                        created_at=now,
+                    ),
+                ))
+
+    def list_recent_conversation_messages(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        max_messages: int,
+        max_chars: int,
+    ) -> list[ConversationMessage]:
+        self.ensure_conversation_session(
+            session_id=session_id,
+            user_id=user_id,
+            persona_id=persona_id,
+        )
+        with self._lock:
+            matching = [
+                message
+                for sid, uid, pid, message in self._conversation_messages
+                if sid == session_id and uid == user_id and pid == persona_id
+            ]
+        selected: list[ConversationMessage] = []
+        chars = 0
+        for message in reversed(matching):
+            if len(selected) >= max(0, max_messages):
+                break
+            size = len(message.content)
+            if selected and chars + size > max_chars:
+                break
+            if not selected and size > max_chars:
+                message = ConversationMessage(
+                    role=message.role,
+                    content=message.content[-max_chars:],
+                    created_at=message.created_at,
+                )
+                size = len(message.content)
+            selected.append(message)
+            chars += size
+        return list(reversed(selected))
+
     def get_all_events(self) -> list[CareEvent]:
         with self._lock:
             return list(self._events.values())
@@ -202,3 +309,5 @@ class InMemoryCareRepository:
             self._reminders.clear()
             self._event_idempotency.clear()
             self._reminder_idempotency.clear()
+            self._conversation_sessions.clear()
+            self._conversation_messages.clear()

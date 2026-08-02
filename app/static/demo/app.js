@@ -2,6 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+const SESSION_STORAGE_KEY = "careAgentSessionId";
 
 const state = {
   mode: "voice",
@@ -373,6 +374,7 @@ function requireSessionId() {
   if (value) return value;
   const generated = makeSessionId();
   elements.sessionId.value = generated;
+  sessionStorage.setItem(SESSION_STORAGE_KEY, generated);
   return generated;
 }
 
@@ -518,6 +520,7 @@ async function resolveConfirmation(decision) {
   if (!state.pendingConfirmation) throw new Error("目前沒有待確認操作。" );
   const pending = state.pendingConfirmation;
   elements.sessionId.value = pending.sessionId;
+  sessionStorage.setItem(SESSION_STORAGE_KEY, pending.sessionId);
   const payload = await requestJson("/api/agent/confirm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -660,6 +663,10 @@ function bindEvents() {
   }
 
   elements.apiToken.value = sessionStorage.getItem("careAgentApiToken") || "";
+  elements.sessionId.addEventListener("input", () => {
+    const value = elements.sessionId.value.trim();
+    if (value) sessionStorage.setItem(SESSION_STORAGE_KEY, value);
+  });
   elements.apiToken.addEventListener("input", () => {
     sessionStorage.setItem("careAgentApiToken", elements.apiToken.value);
   });
@@ -719,7 +726,8 @@ function bindEvents() {
 }
 
 async function init() {
-  elements.sessionId.value = makeSessionId();
+  elements.sessionId.value = sessionStorage.getItem(SESSION_STORAGE_KEY) || makeSessionId();
+  sessionStorage.setItem(SESSION_STORAGE_KEY, elements.sessionId.value);
   bindEvents();
   clearResults();
   setRequestState("初始化", "running");

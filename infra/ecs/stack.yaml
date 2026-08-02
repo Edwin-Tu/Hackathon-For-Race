@@ -293,6 +293,12 @@ Resources:
               Value: 'true'
             - Name: INPUT_GUARD_FAIL_CLOSED
               Value: 'true'
+            - Name: CONVERSATION_HISTORY_ENABLED
+              Value: 'true'
+            - Name: CONVERSATION_HISTORY_MAX_MESSAGES
+              Value: '12'
+            - Name: CONVERSATION_HISTORY_MAX_CHARS
+              Value: '12000'
             - Name: WHISPER_ENABLED
               Value: 'true'
             - Name: WHISPER_MODEL_SIZE

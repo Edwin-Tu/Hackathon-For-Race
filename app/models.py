@@ -1,7 +1,7 @@
 """Request and response models for the agent API."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,10 @@ class ChatRequest(BaseModel):
     """POST /api/agent/chat request body."""
 
     message: str = Field(..., min_length=1, description="使用者訊息")
-    session_id: str | None = Field(None, description="可選的會話 ID")
+    session_id: str | None = Field(None, min_length=1, max_length=191, description="可選的會話 ID")
+    input_type: Literal["text", "voice"] = Field(
+        "text", description="訊息來源；由後端語音端點設定為 voice"
+    )
     # For confirming pending tool operations
     confirmation_token: str | None = Field(None, description="工具確認代碼")
 

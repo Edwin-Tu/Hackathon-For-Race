@@ -1,10 +1,14 @@
-"""Repository contracts shared by the Tool Gateway and reminder scheduler."""
+"""Repository contracts shared by the Agent, Tool Gateway, and scheduler."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
+
+
+class SessionScopeError(RuntimeError):
+    """Raised when a session is accessed by another user or persona scope."""
 
 
 @dataclass
@@ -50,14 +54,18 @@ class ScheduleItem:
     scheduled_time: datetime
 
 
+@dataclass(frozen=True)
+class ConversationMessage:
+    """One safe natural-language message loaded into Claude context."""
+
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+
 @runtime_checkable
 class CareRepository(Protocol):
-    """Storage contract consumed by ToolHandlers and ReminderScheduler.
-
-    The Tool Gateway remains storage agnostic. Implementations may persist to
-    memory, MySQL, or another transactional store, but must preserve this
-    contract.
-    """
+    """Storage contract consumed by Agent, tools, and reminder scheduler."""
 
     def create_care_event(
         self,
@@ -114,3 +122,33 @@ class CareRepository(Protocol):
         *,
         stale_before: datetime,
     ) -> int: ...
+
+    def ensure_conversation_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+    ) -> None: ...
+
+    def append_conversation_turn(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        request_id: str,
+        user_message: str,
+        assistant_message: str,
+        input_type: str = "text",
+    ) -> None: ...
+
+    def list_recent_conversation_messages(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        max_messages: int,
+        max_chars: int,
+    ) -> list[ConversationMessage]: ...

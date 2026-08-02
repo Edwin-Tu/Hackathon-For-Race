@@ -357,3 +357,9 @@ scripts/cloud/deploy.sh
 ```
 
 `infra/apprunner/` 只保留給既有 App Runner 客戶，不是新的預設部署路徑。
+
+## Session-scoped Claude conversation history
+
+The Agent now persists safe conversation turns to `sessions` and `interactions`, then reloads the most recent messages for the same trusted `user_id + persona_id + session_id` scope before calling Bedrock. The validation UI keeps its Session ID in `sessionStorage`, so a page refresh does not silently start a new conversation.
+
+See `CONVERSATION_HISTORY_FIX.md` for security boundaries and deployment verification.

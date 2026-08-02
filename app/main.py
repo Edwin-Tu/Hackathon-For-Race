@@ -70,6 +70,7 @@ agent_service = AgentService(
     provider=provider,
     gateway=gateway,
     input_guard=input_guard,
+    repository=repository,
 )
 
 output_store = OutputEventStore(max_events=settings.OUTPUT_EVENT_BUFFER_SIZE)
@@ -264,6 +265,7 @@ async def voice_turn(
             message=transcription.text,
             session_id=session_id,
             confirmation_token=confirmation_token,
+            input_type="voice",
         )
     )
 

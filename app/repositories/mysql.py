@@ -31,7 +31,13 @@ except ModuleNotFoundError:  # Allows memory-mode tests without MySQL extras.
     MySQLError = Exception  # type: ignore[assignment,misc]
     MySQLConnection = Any  # type: ignore[assignment,misc]
 
-from app.repositories.base import CareEvent, Reminder, ScheduleItem
+from app.repositories.base import (
+    CareEvent,
+    ConversationMessage,
+    Reminder,
+    ScheduleItem,
+    SessionScopeError,
+)
 
 logger = logging.getLogger(__name__)
 TAIPEI_TZ = ZoneInfo("Asia/Taipei")
@@ -57,6 +63,18 @@ class SchemaCapabilities:
     event_table: str
     event_columns: frozenset[str]
     reminder_columns: frozenset[str]
+
+
+@dataclass(frozen=True)
+class ConversationSchemaCapabilities:
+    """Detected columns used for durable session-scoped conversation history."""
+
+    session_columns: frozenset[str]
+    interaction_columns: frozenset[str]
+    persona_columns: frozenset[str]
+    access_columns: frozenset[str]
+    organization_persona_columns: frozenset[str]
+    organization_columns: frozenset[str]
 
 
 def parse_mysql_database_url(
@@ -166,6 +184,8 @@ class MySQLCareRepository:
         self._event_table_preference = _safe_event_table(care_event_table)
         self._schema: SchemaCapabilities | None = None
         self._schema_lock = threading.Lock()
+        self._conversation_schema: ConversationSchemaCapabilities | None = None
+        self._conversation_schema_lock = threading.Lock()
 
     @property
     def event_table(self) -> str:
@@ -731,6 +751,384 @@ class MySQLCareRepository:
                 raise
             finally:
                 cursor.close()
+
+    def _detect_conversation_schema(
+        self,
+        connection: MySQLConnection,
+    ) -> ConversationSchemaCapabilities:
+        if self._conversation_schema is not None:
+            return self._conversation_schema
+
+        with self._conversation_schema_lock:
+            if self._conversation_schema is not None:
+                return self._conversation_schema
+
+            cursor = connection.cursor()
+            try:
+                cursor.execute(
+                    """
+                    SELECT table_name, column_name
+                      FROM information_schema.columns
+                     WHERE table_schema = %s
+                       AND table_name IN (
+                           'sessions', 'interactions', 'personas',
+                           'user_persona_access', 'organization_personas',
+                           'organizations'
+                       )
+                    """,
+                    (self._connection_kwargs["database"],),
+                )
+                columns: dict[str, set[str]] = {}
+                for table_name, column_name in cursor.fetchall():
+                    columns.setdefault(str(table_name), set()).add(str(column_name))
+            finally:
+                cursor.close()
+
+            required_session = {
+                "session_id", "persona_id", "client_type",
+                "started_at", "last_active_at",
+            }
+            required_interaction = {
+                "interaction_id", "request_id", "session_id", "persona_id",
+                "input_type", "transcript", "agent_response", "started_at",
+            }
+            missing_session = required_session - columns.get("sessions", set())
+            missing_interaction = required_interaction - columns.get("interactions", set())
+            if missing_session:
+                raise RepositoryConfigurationError(
+                    "sessions table is missing conversation columns: "
+                    + ", ".join(sorted(missing_session))
+                )
+            if missing_interaction:
+                raise RepositoryConfigurationError(
+                    "interactions table is missing conversation columns: "
+                    + ", ".join(sorted(missing_interaction))
+                )
+
+            self._conversation_schema = ConversationSchemaCapabilities(
+                session_columns=frozenset(columns.get("sessions", set())),
+                interaction_columns=frozenset(columns.get("interactions", set())),
+                persona_columns=frozenset(columns.get("personas", set())),
+                access_columns=frozenset(columns.get("user_persona_access", set())),
+                organization_persona_columns=frozenset(
+                    columns.get("organization_personas", set())
+                ),
+                organization_columns=frozenset(columns.get("organizations", set())),
+            )
+            return self._conversation_schema
+
+    @staticmethod
+    def _validate_session_scope_row(
+        row: tuple[Any, ...],
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+    ) -> None:
+        existing_persona = str(row[0]) if row[0] is not None else ""
+        existing_user = str(row[1]) if len(row) > 1 and row[1] is not None else ""
+        if existing_persona and existing_persona != persona_id:
+            raise SessionScopeError(
+                f"session_id {session_id} belongs to a different persona"
+            )
+        if existing_user and existing_user != user_id:
+            raise SessionScopeError(
+                f"session_id {session_id} belongs to a different user"
+            )
+
+    def _ensure_conversation_session_with_cursor(
+        self,
+        cursor: Any,
+        schema: ConversationSchemaCapabilities,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        now_utc: datetime,
+    ) -> None:
+        self._ensure_active_persona(cursor, persona_id)
+        if self._existing_user_id(cursor, user_id) is None:
+            raise RepositoryDataError(f"Unknown or inactive user_id: {user_id}")
+
+        client_select = (
+            "client_identifier"
+            if "client_identifier" in schema.session_columns
+            else "NULL"
+        )
+        cursor.execute(
+            f"""
+            SELECT persona_id, {client_select}
+              FROM sessions
+             WHERE session_id = %s
+             LIMIT 1
+            """,
+            (session_id,),
+        )
+        existing = cursor.fetchone()
+        if existing is not None:
+            self._validate_session_scope_row(
+                existing,
+                session_id=session_id,
+                user_id=user_id,
+                persona_id=persona_id,
+            )
+            assignments = ["last_active_at = %s"]
+            params: list[Any] = [now_utc]
+            if "client_identifier" in schema.session_columns and not existing[1]:
+                assignments.append("client_identifier = %s")
+                params.append(user_id)
+            params.append(session_id)
+            cursor.execute(
+                f"UPDATE sessions SET {', '.join(assignments)} WHERE session_id = %s",
+                tuple(params),
+            )
+            return
+
+        columns = ["session_id", "persona_id", "client_type", "started_at", "last_active_at"]
+        values: list[Any] = [session_id, persona_id, "voice_agent", now_utc, now_utc]
+        if "client_identifier" in schema.session_columns:
+            columns.insert(3, "client_identifier")
+            values.insert(3, user_id)
+        placeholders = ", ".join(["%s"] * len(columns))
+        cursor.execute(
+            f"INSERT INTO sessions ({', '.join(columns)}) VALUES ({placeholders})",
+            tuple(values),
+        )
+
+    def ensure_conversation_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+    ) -> None:
+        now_utc = datetime.now(UTC).replace(tzinfo=None)
+        with self._connection() as connection:
+            schema = self._detect_conversation_schema(connection)
+            cursor = connection.cursor()
+            try:
+                self._ensure_conversation_session_with_cursor(
+                    cursor,
+                    schema,
+                    session_id=session_id,
+                    user_id=user_id,
+                    persona_id=persona_id,
+                    now_utc=now_utc,
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def _resolve_organization_id(
+        self,
+        cursor: Any,
+        schema: ConversationSchemaCapabilities,
+        *,
+        user_id: str,
+        persona_id: str,
+    ) -> str:
+        if "primary_organization_id" in schema.persona_columns:
+            cursor.execute(
+                "SELECT primary_organization_id FROM personas WHERE persona_id = %s",
+                (persona_id,),
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return str(row[0])
+
+        if {"organization_id", "user_id", "persona_id"}.issubset(
+            schema.access_columns
+        ):
+            cursor.execute(
+                """
+                SELECT organization_id
+                  FROM user_persona_access
+                 WHERE user_id = %s AND persona_id = %s
+                   AND (revoked_at IS NULL OR %s = 0)
+                 LIMIT 1
+                """
+                if "revoked_at" in schema.access_columns
+                else """
+                SELECT organization_id
+                  FROM user_persona_access
+                 WHERE user_id = %s AND persona_id = %s
+                 LIMIT 1
+                """,
+                (user_id, persona_id, 1)
+                if "revoked_at" in schema.access_columns
+                else (user_id, persona_id),
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return str(row[0])
+
+        if {"organization_id", "persona_id"}.issubset(
+            schema.organization_persona_columns
+        ):
+            cursor.execute(
+                """
+                SELECT organization_id
+                  FROM organization_personas
+                 WHERE persona_id = %s
+                 LIMIT 1
+                """,
+                (persona_id,),
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return str(row[0])
+
+        if "organization_id" in schema.organization_columns:
+            cursor.execute("SELECT organization_id FROM organizations LIMIT 2")
+            rows = cursor.fetchall()
+            if len(rows) == 1 and rows[0][0]:
+                return str(rows[0][0])
+
+        raise RepositoryDataError(
+            "Cannot resolve organization_id for conversation interaction"
+        )
+
+    def append_conversation_turn(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        request_id: str,
+        user_message: str,
+        assistant_message: str,
+        input_type: str = "text",
+    ) -> None:
+        now_utc = datetime.now(UTC).replace(tzinfo=None)
+        with self._connection() as connection:
+            schema = self._detect_conversation_schema(connection)
+            cursor = connection.cursor()
+            try:
+                self._ensure_conversation_session_with_cursor(
+                    cursor,
+                    schema,
+                    session_id=session_id,
+                    user_id=user_id,
+                    persona_id=persona_id,
+                    now_utc=now_utc,
+                )
+                columns = [
+                    "interaction_id", "request_id", "session_id", "persona_id",
+                    "input_type", "transcript", "agent_response", "started_at",
+                ]
+                values: list[Any] = [
+                    str(uuid.uuid4()), request_id, session_id, persona_id,
+                    input_type, user_message.strip(), assistant_message.strip(), now_utc,
+                ]
+                if "normalized_text" in schema.interaction_columns:
+                    columns.append("normalized_text")
+                    values.append(user_message.strip())
+                if "actor_user_id" in schema.interaction_columns:
+                    columns.append("actor_user_id")
+                    values.append(user_id)
+                if "organization_id" in schema.interaction_columns:
+                    columns.append("organization_id")
+                    values.append(self._resolve_organization_id(
+                        cursor,
+                        schema,
+                        user_id=user_id,
+                        persona_id=persona_id,
+                    ))
+                if "completed_at" in schema.interaction_columns:
+                    columns.append("completed_at")
+                    values.append(now_utc)
+
+                placeholders = ", ".join(["%s"] * len(columns))
+                cursor.execute(
+                    f"INSERT INTO interactions ({', '.join(columns)}) VALUES ({placeholders})",
+                    tuple(values),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+    def list_recent_conversation_messages(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        persona_id: str,
+        max_messages: int,
+        max_chars: int,
+    ) -> list[ConversationMessage]:
+        now_utc = datetime.now(UTC).replace(tzinfo=None)
+        row_limit = max(1, (max_messages + 1) // 2 + 1)
+        with self._connection() as connection:
+            schema = self._detect_conversation_schema(connection)
+            cursor = connection.cursor()
+            try:
+                self._ensure_conversation_session_with_cursor(
+                    cursor,
+                    schema,
+                    session_id=session_id,
+                    user_id=user_id,
+                    persona_id=persona_id,
+                    now_utc=now_utc,
+                )
+                cursor.execute(
+                    """
+                    SELECT transcript, agent_response, started_at
+                      FROM interactions
+                     WHERE session_id = %s
+                       AND persona_id = %s
+                     ORDER BY started_at DESC
+                     LIMIT %s
+                    """,
+                    (session_id, persona_id, row_limit),
+                )
+                rows = list(reversed(cursor.fetchall()))
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.close()
+
+        messages: list[ConversationMessage] = []
+        for transcript, agent_response, started_at in rows:
+            created_at = _from_utc_naive(started_at)
+            if transcript and str(transcript).strip():
+                messages.append(ConversationMessage(
+                    role="user",
+                    content=str(transcript).strip(),
+                    created_at=created_at,
+                ))
+            if agent_response and str(agent_response).strip():
+                messages.append(ConversationMessage(
+                    role="assistant",
+                    content=str(agent_response).strip(),
+                    created_at=created_at,
+                ))
+
+        selected: list[ConversationMessage] = []
+        chars = 0
+        for message in reversed(messages):
+            if len(selected) >= max(0, max_messages):
+                break
+            size = len(message.content)
+            if selected and chars + size > max_chars:
+                break
+            if not selected and size > max_chars:
+                message = ConversationMessage(
+                    role=message.role,
+                    content=message.content[-max_chars:],
+                    created_at=message.created_at,
+                )
+                size = len(message.content)
+            selected.append(message)
+            chars += size
+        return list(reversed(selected))
 
     def get_all_events(self) -> list[CareEvent]:
         with self._connection() as connection:

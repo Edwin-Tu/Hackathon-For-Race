@@ -1,3 +1,5 @@
+from pathlib import Path
+
 """Smoke tests for the dependency-free validation UI."""
 
 from fastapi.testclient import TestClient
@@ -46,3 +48,10 @@ def test_demo_page_does_not_embed_server_secrets() -> None:
     )
     for value in forbidden:
         assert value not in response.text
+
+
+def test_demo_persists_session_id_in_session_storage():
+    script = Path("app/static/demo/app.js").read_text(encoding="utf-8")
+    assert "careAgentSessionId" in script
+    assert "sessionStorage.getItem(SESSION_STORAGE_KEY)" in script
+    assert "sessionStorage.setItem(SESSION_STORAGE_KEY" in script
