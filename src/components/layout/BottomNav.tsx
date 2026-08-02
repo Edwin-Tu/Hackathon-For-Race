@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useRouter } from 'next/router';
-import { getUserRole } from '../utils/auth';
+import { getUserRole } from '../../utils/auth';
 
 // 圖示
 import PeopleIcon from '@mui/icons-material/People';

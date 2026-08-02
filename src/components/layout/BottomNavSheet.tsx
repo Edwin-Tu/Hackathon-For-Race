@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useRouter } from 'next/router';
-import { getUserRole } from '../utils/auth';
+import { getUserRole } from '../../utils/auth';
 import { bottomNavRoutes } from './BottomNav';
 import type { BottomNavItem } from './BottomNav';
 

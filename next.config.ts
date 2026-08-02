@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   
   // Performance Optimizations
-  swcMinify: true,
   compress: true,
   
   // Image Optimization
@@ -84,17 +83,15 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@mui/material', '@mui/icons-material'],
   },
   
+  // Turbopack Configuration
+  turbopack: {},
+  
   // Output Configuration
   output: 'standalone',
   
   // TypeScript
   typescript: {
     ignoreBuildErrors: false,
-  },
-  
-  // ESLint
-  eslint: {
-    ignoreDuringBuilds: false,
   },
 };
 

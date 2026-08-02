@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import AppBar from './AppBar';
 import Drawer from './Drawer';
-import BottomNav from '../components/BottomNav';
-import BottomNavSheet from '../components/BottomNavSheet';
+import BottomNav from '../components/layout/BottomNav';
+import BottomNavSheet from '../components/layout/BottomNavSheet';
 import { Box, Snackbar, Alert, Fade, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useRouter } from 'next/router';
