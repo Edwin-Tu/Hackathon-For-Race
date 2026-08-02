@@ -1,0 +1,196 @@
+{
+  "rules": [
+    {
+      "rule_id": "DR-001",
+      "category": "direct_request",
+      "pattern": "(告訴|給)\\s*我.{0,4}(密碼|api\\s*key|金鑰|機密)",
+      "weight": 40,
+      "severity_hint": "high",
+      "reason": "直接要求提供密碼/金鑰等機密"
+    },
+    {
+      "rule_id": "DR-002",
+      "category": "direct_request",
+      "pattern": "(what is|give me|tell me)\\s+(the\\s+)?(password|api\\s*key|secret)",
+      "weight": 40,
+      "severity_hint": "high",
+      "reason": "英文直接索取機密"
+    },
+    {
+      "rule_id": "RP-001",
+      "category": "role_play",
+      "pattern": "(假裝|扮演|角色扮演).{0,6}(你是|是一個)",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "要求模型扮演特定角色以繞過限制"
+    },
+    {
+      "rule_id": "RP-002",
+      "category": "role_play",
+      "pattern": "(pretend|act)\\s+(you\\s+are|as)|dan\\s*mode|developer\\s*mode|jailbreak",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "英文角色扮演/開發者模式/DAN 越獄請求"
+    },
+    {
+      "rule_id": "IO-001",
+      "category": "instruction_override",
+      "pattern": "(忽略|無視).{0,6}(之前|先前|以上).{0,4}(指令|規則)",
+      "weight": 45,
+      "severity_hint": "high",
+      "reason": "要求忽略先前系統指令"
+    },
+    {
+      "rule_id": "IO-002",
+      "category": "instruction_override",
+      "pattern": "ignore\\s+(all\\s+)?(previous|prior|above)\\s+instructions",
+      "weight": 45,
+      "severity_hint": "high",
+      "reason": "英文忽略先前指令請求"
+    },
+    {
+      "rule_id": "SPE-001",
+      "category": "system_prompt_extraction",
+      "pattern": "(系統提示詞|初始指令|你的指令是什麼)",
+      "weight": 50,
+      "severity_hint": "critical",
+      "reason": "要求提取系統提示詞"
+    },
+    {
+      "rule_id": "SPE-002",
+      "category": "system_prompt_extraction",
+      "pattern": "(system\\s*prompt|your\\s+instructions|initial\\s+prompt)",
+      "weight": 50,
+      "severity_hint": "critical",
+      "reason": "英文要求提取系統提示詞"
+    },
+    {
+      "rule_id": "EB-001",
+      "category": "encoding_bypass",
+      "pattern": "base64|hex\\s*编码|url\\s*encod|用.{0,4}編碼.{0,4}回答",
+      "weight": 25,
+      "severity_hint": "medium",
+      "reason": "要求以編碼格式包裝或回覆"
+    },
+    {
+      "rule_id": "PD-001",
+      "category": "partial_disclosure",
+      "pattern": "(前|後)\\s*\\d*\\s*(位|個字|字元)|first\\s+few\\s+characters|last\\s+few\\s+digits",
+      "weight": 30,
+      "severity_hint": "high",
+      "reason": "要求部分揭露機密片段"
+    },
+    {
+      "rule_id": "TB-001",
+      "category": "translation_bypass",
+      "pattern": "翻譯成|用.{0,4}語言.{0,4}(說|告訴我)|translate\\s+it\\s+to|in\\s+(english|japanese|french)\\s+please",
+      "weight": 25,
+      "severity_hint": "medium",
+      "reason": "要求以翻譯手段規避限制"
+    },
+    {
+      "rule_id": "SO-001",
+      "category": "structured_output",
+      "pattern": "用\\s*(json|yaml|表格)\\s*(格式|輸出|列出)|output\\s+as\\s+json|in\\s+a\\s+table\\s+format",
+      "weight": 20,
+      "severity_hint": "medium",
+      "reason": "要求以結構化格式輸出可能包含機密"
+    },
+    {
+      "rule_id": "LA-001",
+      "category": "log_access",
+      "pattern": "(存取|顯示|查看).{0,4}(日誌|紀錄|log)|show\\s+me\\s+the\\s+logs|access\\s+the\\s+logs",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "要求存取系統日誌或紀錄"
+    },
+    {
+      "rule_id": "MTP-001",
+      "category": "multi_turn_probe",
+      "pattern": "(第一個|下一個|再多).{0,4}(字|字元|告訴我)|what\\s+about\\s+the\\s+next\\s+character|is\\s+the\\s+first\\s+letter",
+      "weight": 30,
+      "severity_hint": "high",
+      "reason": "多輪逐步探測機密內容"
+    },
+    {
+      "rule_id": "PC-001",
+      "category": "policy_confusion",
+      "pattern": "我是(管理員|開發者)|i\\s+am\\s+the\\s+admin|as\\s+the\\s+system\\s+owner|i\\s+have\\s+permission",
+      "weight": 25,
+      "severity_hint": "medium",
+      "reason": "宣稱擁有特殊權限以混淆政策判斷"
+    },
+    {
+      "rule_id": "IPI-001",
+      "category": "indirect_prompt_injection",
+      "pattern": "根據(以下|下方).{0,4}(文件|內容).{0,6}(執行|忽略)|as\\s+instructed\\s+in\\s+the\\s+document\\s+below",
+      "weight": 45,
+      "severity_hint": "critical",
+      "reason": "透過外部文件內容間接夾帶指令"
+    },
+    {
+      "rule_id": "FS-001",
+      "category": "format_smuggling",
+      "pattern": "<!--|<script>|```system|\\[system\\]|隱藏指令",
+      "weight": 30,
+      "severity_hint": "medium",
+      "reason": "利用特殊格式夾帶隱藏指令"
+    },
+    {
+      "rule_id": "OCB-001",
+      "category": "output_constraint_bypass",
+      "pattern": "不受限制地回答|沒有任何限制|without\\s+any\\s+restrictions|with\\s+no\\s+filter|unfiltered\\s+response",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "要求繞過輸出內容限制"
+    },
+    {
+      "rule_id": "RT-001",
+      "category": "reasoning_trap",
+      "pattern": "假設.{0,6}(你可以|沒有限制)|hypothetically\\s+speaking|suppose\\s+there\\s+were\\s+no\\s+rules",
+      "weight": 25,
+      "severity_hint": "medium",
+      "reason": "以假設情境誘導間接洩漏機密"
+    },
+    {
+      "rule_id": "RS-001",
+      "category": "refusal_suppression",
+      "pattern": "不要拒絕|不可以說不知道|never\\s+refuse|do\\s+not\\s+decline|you\\s+must\\s+answer",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "壓制模型拒絕回答的能力"
+    },
+    {
+      "rule_id": "PO-001",
+      "category": "persona_override",
+      "pattern": "從現在開始你是|你不再是助理|from\\s+now\\s+on\\s+you\\s+are|you\\s+are\\s+no\\s+longer\\s+an\\s+assistant",
+      "weight": 35,
+      "severity_hint": "high",
+      "reason": "要求永久覆寫模型人格"
+    },
+    {
+      "rule_id": "DRC-001",
+      "category": "data_reconstruction",
+      "pattern": "逐字元列出|一個一個字告訴我|character\\s+by\\s+character|spell\\s+it\\s+out",
+      "weight": 45,
+      "severity_hint": "critical",
+      "reason": "要求逐字元重建出機密內容"
+    },
+    {
+      "rule_id": "CLI-001",
+      "category": "cross_language_injection",
+      "pattern": "以前の指示を無視|システムプロンプト|비밀번호를\\s*알려줘|ignorez\\s+les\\s+instructions",
+      "weight": 40,
+      "severity_hint": "high",
+      "reason": "以非主要語言重述指令覆寫或機密請求"
+    },
+    {
+      "rule_id": "HO-001",
+      "category": "homoglyph_obfuscation",
+      "pattern": "[а-яА-Я]",
+      "weight": 20,
+      "severity_hint": "medium",
+      "reason": "文字中出現西里爾字母等相似字形字元"
+    }
+  ]
+}

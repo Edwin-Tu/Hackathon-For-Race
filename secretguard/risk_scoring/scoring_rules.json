@@ -1,0 +1,78 @@
+{
+  "attack_category_scores": {
+    "benign": 0,
+    "direct_request": 65,
+    "role_play": 55,
+    "instruction_override": 60,
+    "system_prompt_extraction": 75,
+    "encoding_bypass": 40,
+    "partial_disclosure": 60,
+    "translation_bypass": 40,
+    "structured_output": 25,
+    "log_access": 55,
+    "multi_turn_probe": 55,
+    "policy_confusion": 35,
+    "indirect_prompt_injection": 75,
+    "format_smuggling": 35,
+    "output_constraint_bypass": 55,
+    "reasoning_trap": 35,
+    "refusal_suppression": 55,
+    "persona_override": 55,
+    "data_reconstruction": 80,
+    "cross_language_injection": 60,
+    "homoglyph_obfuscation": 40,
+    "authorization_bypass": 85
+  },
+  "asset_risk_scores": {
+    "low": 10,
+    "medium": 25,
+    "high": 40,
+    "critical": 50
+  },
+  "match_type_scores": {
+    "exact_match": 40,
+    "case_insensitive_match": 35,
+    "alias_match": 15,
+    "partial_match": 30,
+    "encoding_match": 45,
+    "semantic_match": 20,
+    "translation_match": 20,
+    "reconstruction_match": 50
+  },
+  "authorization_adjustments": {
+    "owner": 0,
+    "authorized": 0,
+    "unauthorized": 30,
+    "role_claim_only": 40,
+    "unknown": 30
+  },
+  "session_signal_scores": {
+    "repeated_secret_request": 20,
+    "previous_blocked_attempt": 25,
+    "repeated_partial_request": 20,
+    "encoding_after_refusal": 25,
+    "session_marked_suspicious": 30
+  },
+  "thresholds": {
+    "low": [
+      0,
+      19
+    ],
+    "moderate": [
+      20,
+      39
+    ],
+    "medium": [
+      40,
+      59
+    ],
+    "high": [
+      60,
+      74
+    ],
+    "critical": [
+      75,
+      100
+    ]
+  }
+}
